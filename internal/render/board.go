@@ -66,10 +66,6 @@ func DrawBoard(dst *ebiten.Image, m layout.Metrics) {
 	}
 }
 
-func DrawPiece(dst *ebiten.Image, t chess.PieceType, r layout.Rect, fill color.Color) {
-	pad := r.W * 0.12
-	DrawPath(dst, UnitPath(t), r.X+pad, r.Y+pad, r.W-2*pad, r.H-2*pad, fill, ColorOutline, r.W*0.045)
-}
 
 func DrawStar(dst *ebiten.Image, sq chess.Square, m layout.Metrics, pulse float64) {
 	cr := m.CellRect(int(sq.File), int(sq.Rank))

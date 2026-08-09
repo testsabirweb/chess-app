@@ -177,7 +177,7 @@ func (p *PlayScene) Draw(dst *ebiten.Image, ctx *Context) {
 
 	render.DrawTextCentered(dst, render.PieceName(p.pieceType), m.Header.X+m.Header.W/2, m.Header.Y+m.Header.H*0.35, m.TitleSize, render.ColorText)
 	pr := layout.Rect{X: m.Header.X + m.Header.W*0.35, Y: m.Header.Y + m.Header.H*0.45, W: m.Header.W * 0.3, H: m.Header.H * 0.5}
-	render.DrawPiece(dst, p.pieceType, pr, render.PieceFill(chess.White))
+	render.DrawPiece(dst, chess.Piece{Type: p.pieceType, Color: chess.White}, pr)
 
 	render.DrawBoard(dst, m)
 	if p.showRays {
@@ -204,7 +204,7 @@ func (p *PlayScene) Draw(dst *ebiten.Image, ctx *Context) {
 	}
 	cr.X += wx
 	cr.Y += wy
-	render.DrawPiece(dst, p.pieceType, cr, render.PieceFill(p.cur.Piece.Color))
+	render.DrawPiece(dst, p.cur.Piece, cr)
 
 	if p.wobbleT > 0 {
 		wcr := m.CellRect(int(p.wobbleSq.File), int(p.wobbleSq.Rank))

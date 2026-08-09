@@ -49,7 +49,7 @@ func (h *HomeScene) Draw(dst *ebiten.Image, ctx *Context) {
 	for i, pr := range pieceRects {
 		render.DrawRoundedButton(dst, pr.X, pr.Y, pr.W, pr.H, render.ColorButtonHi)
 		pad := pr.W * 0.15
-		render.DrawPiece(dst, allPieces[i], layout.Rect{X: pr.X + pad, Y: pr.Y + pad, W: pr.W - 2*pad, H: pr.H - 2*pad}, render.PieceFill(chess.White))
+		render.DrawPiece(dst, chess.Piece{Type: allPieces[i], Color: chess.White}, layout.Rect{X: pr.X + pad, Y: pr.Y + pad, W: pr.W - 2*pad, H: pr.H - 2*pad})
 		render.DrawTextCentered(dst, render.PieceName(allPieces[i]), pr.X+pr.W/2, pr.Y+pr.H*0.88, m.BodySize*0.7, render.ColorText)
 	}
 }
