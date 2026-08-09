@@ -53,6 +53,13 @@ func DrawFilledCircle(dst *ebiten.Image, cx, cy, r float64, clr color.Color) {
 	vector.FillCircle(dst, float32(cx), float32(cy), float32(r), clr, true)
 }
 
+func DrawMoveHints(dst *ebiten.Image, m layout.Metrics, squares []chess.Square) {
+	for _, sq := range squares {
+		cr := m.CellRect(int(sq.File), int(sq.Rank))
+		DrawFilledRect(dst, cr.X, cr.Y, cr.W, cr.H, ColorMoveHint)
+	}
+}
+
 func DrawBoard(dst *ebiten.Image, m layout.Metrics) {
 	for r := 0; r < m.Rows; r++ {
 		for f := 0; f < m.Cols; f++ {

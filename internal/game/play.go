@@ -40,12 +40,11 @@ type PlayScene struct {
 	toX, toY         float64
 	starScale        float64
 
-	showRays  bool
-	rayTimer  float64
-	wobbleSq  chess.Square
-	wobbleT   float64
-	wobbleAmp float64
-	stickerRow []chess.PieceType
+	pieceSelected bool
+	wobbleSq      chess.Square
+	wobbleT       float64
+	wobbleAmp     float64
+	stickerRow    []chess.PieceType
 }
 
 func NewPlayScene(g *Game, pt chess.PieceType) *PlayScene {
@@ -71,6 +70,7 @@ func NewPlayScene(g *Game, pt chess.PieceType) *PlayScene {
 func (p *PlayScene) newChallenge() {
 	p.cur = p.gen.Next()
 	p.pieceX, p.pieceY = 0, 0
+	p.pieceSelected = false
 }
 
 func (p *PlayScene) syncPiecePos(m layout.Metrics) {
@@ -128,12 +128,6 @@ func (p *PlayScene) Update(ctx *Context) error {
 		}
 	}
 
-	if p.showRays {
-		p.rayTimer -= ctx.DT
-		if p.rayTimer <= 0 {
-			p.showRays = false
-		}
-	}
 	if p.wobbleT > 0 {
 		p.wobbleT -= ctx.DT
 	}
@@ -141,30 +135,45 @@ func (p *PlayScene) Update(ctx *Context) error {
 }
 
 func (p *PlayScene) handleTap(ctx *Context, x, y float64, m layout.Metrics) {
+	f, r, ok := m.HitCell(x, y)
+	if !ok {
+		return
+	}
+	sq := chess.Sq(f, r)
+
+	if !p.pieceSelected {
+		if sq == p.cur.From {
+			ctx.SFX.Play(sfx.SndButton)
+			p.pieceSelected = true
+		} else {
+			ctx.SFX.Play(sfx.SndOops)
+			p.wobbleSq = sq
+			p.wobbleT = 0.25
+			p.wobbleAmp = m.Cell * 0.02
+		}
+		return
+	}
+
 	if m.HitStar(x, y, p.cur.Target, p.cur.Solutions) {
 		cr := m.CellRect(int(p.cur.Target.File), int(p.cur.Target.Rank))
 		p.fromX, p.fromY = p.pieceX, p.pieceY
 		p.toX, p.toY = cr.Center()
 		p.moveTween.Start()
 		p.state = stateMoving
+		p.pieceSelected = false
 		return
 	}
-	f, r, ok := m.HitCell(x, y)
-	if !ok {
-		return
-	}
-	sq := chess.Sq(f, r)
+
 	for _, sol := range p.cur.Solutions {
 		if sol == sq {
 			ctx.SFX.Play(sfx.SndNear)
 			p.wobbleSq = sq
 			p.wobbleT = 0.35
 			p.wobbleAmp = m.Cell * 0.04
-			p.showRays = true
-			p.rayTimer = 0.6
 			return
 		}
 	}
+
 	ctx.SFX.Play(sfx.SndOops)
 	p.wobbleSq = sq
 	p.wobbleT = 0.25
@@ -180,11 +189,10 @@ func (p *PlayScene) Draw(dst *ebiten.Image, ctx *Context) {
 	render.DrawPiece(dst, chess.Piece{Type: p.pieceType, Color: chess.White}, pr)
 
 	render.DrawBoard(dst, m)
-	if p.showRays {
-		for _, s := range p.cur.Solutions {
-			cr := m.CellRect(int(s.File), int(s.Rank))
-			render.DrawFilledRect(dst, cr.X, cr.Y, cr.W, cr.H, colorAlpha(render.ColorAccent, 0.25))
-		}
+	if p.pieceSelected && p.state == stateIdle {
+		render.DrawMoveHints(dst, m, p.cur.Solutions)
+		pcr := m.CellRect(int(p.cur.From.File), int(p.cur.From.Rank))
+		render.DrawFilledRect(dst, pcr.X, pcr.Y, pcr.W, pcr.H, colorAlpha(render.ColorAccent, 0.2))
 	}
 
 	if p.state == stateIdle || p.state == stateMoving {
