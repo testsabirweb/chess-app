@@ -1,0 +1,110 @@
+# Builds an installable Android APK when you publish a GitHub Release.
+# Does NOT run on ordinary pushes — only on release publish or manual trigger.
+#
+# Cost: free on public repos (unlimited Actions minutes). Private repos get
+# 2,000 Actions minutes/month on the free plan — a release build uses ~15–25 min.
+
+name: Android Release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Optional label for the uploaded APK filename"
+        required: false
+        default: "manual"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('android/**/*.gradle*', 'android/**/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
+      - name: Install Android SDK packages
+        run: |
+          yes | sdkmanager --licenses
+          sdkmanager \
+            "platform-tools" \
+            "platforms;android-36" \
+            "build-tools;36.0.0" \
+            "ndk;28.2.13676358"
+
+      - name: Install ebitenmobile
+        run: go install github.com/hajimehoshi/ebiten/v2/cmd/ebitenmobile@v2.9.9
+
+      - name: Run unit tests
+        run: go test -race ./internal/...
+
+      - name: Bind native library (AAR)
+        env:
+          ANDROID_NDK_HOME: ${{ env.ANDROID_SDK_ROOT }}/ndk/28.2.13676358
+        run: make bind
+
+      - name: Build debug APK
+        run: make apk
+
+      - name: Verify 16 KB page alignment
+        run: |
+          export PATH="${ANDROID_SDK_ROOT}/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH"
+          make verify-16k
+
+      - name: Name APK artifact
+        id: apk
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            name="toddler-chess-${{ github.event.release.tag_name }}.apk"
+          else
+            name="toddler-chess-${{ inputs.tag }}.apk"
+          fi
+          cp android/app/build/outputs/apk/debug/app-debug.apk "$name"
+          echo "path=$name" >> "$GITHUB_OUTPUT"
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: ${{ steps.apk.outputs.path }}
+          if-no-files-found: error
+
+      - name: Attach APK to GitHub Release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.apk.outputs.path }}

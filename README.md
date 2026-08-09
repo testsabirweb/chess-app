@@ -54,3 +54,24 @@ make bind          # rebuild native Android library (slow, first time ~minutes)
 make apk           # build debug APK
 make verify-16k    # Play Store page-size check
 ```
+
+## CI/CD — build APK on GitHub Release (free)
+
+The workflow in `.github/workflows/android-release.yml` runs **only when you publish a GitHub Release**, not on every push. It runs tests, builds the APK, checks 16 KB alignment, and attaches the APK to the release.
+
+### How to get an APK from CI
+
+1. On GitHub: **Releases → Create a new release**
+2. Choose a tag (e.g. `v0.1.0`) and publish
+3. Wait ~15–25 minutes for the workflow to finish
+4. Download **`toddler-chess-v0.1.0.apk`** from the release assets
+5. AirDrop or copy to your phone and install (no terminal on the phone)
+
+### Cost
+
+| Repo type | Cost |
+|-----------|------|
+| **Public** | Free — unlimited Actions minutes |
+| **Private** | Free tier — 2,000 Actions minutes/month (~80+ release builds) |
+
+To test the workflow without creating a release: **Actions → Android Release → Run workflow**.
