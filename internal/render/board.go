@@ -57,6 +57,9 @@ func DrawMoveHints(dst *ebiten.Image, m layout.Metrics, squares []chess.Square) 
 	for _, sq := range squares {
 		cr := m.CellRect(int(sq.File), int(sq.Rank))
 		DrawFilledRect(dst, cr.X, cr.Y, cr.W, cr.H, ColorMoveHint)
+		// Center dot stays visible on both white and grey squares.
+		r := cr.W * 0.14
+		DrawFilledCircle(dst, cr.X+cr.W/2, cr.Y+cr.H/2, r, ColorMoveHintDot)
 	}
 }
 

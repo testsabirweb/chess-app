@@ -6,7 +6,8 @@ var (
 	ColorBG       = color.RGBA{24, 26, 38, 255}
 	ColorBoardL   = color.RGBA{255, 255, 255, 255}
 	ColorBoardD   = color.RGBA{181, 181, 181, 255}
-	ColorMoveHint = color.RGBA{255, 120, 120, 110}
+	ColorMoveHint     = color.RGBA{220, 40, 40, 170}
+	ColorMoveHintDot  = color.RGBA{180, 20, 20, 230}
 	ColorOutline  = color.RGBA{35, 35, 50, 255}
 	ColorWhite    = color.RGBA{252, 252, 255, 255}
 	ColorAccent   = color.RGBA{255, 210, 60, 255}
