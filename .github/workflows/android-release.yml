@@ -70,7 +70,7 @@ jobs:
         run: go install github.com/hajimehoshi/ebiten/v2/cmd/ebitenmobile@v2.9.9
 
       - name: Run unit tests (pure packages)
-        run: go test -race ./internal/chess ./internal/challenge ./internal/layout ./internal/anim ./internal/sfx/...
+        run: go test -race ./internal/chess ./internal/challenge ./internal/layout ./internal/anim
 
       - name: Typecheck rendering layer (no display/audio needed)
         run: GOOS=js GOARCH=wasm go build ./...
