@@ -23,6 +23,13 @@ concurrency:
   group: android-release-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  GOCACHE: ${{ github.workspace }}/.cache/go-build
+  EBITENMOBILE_VERSION: v2.9.9
+  ANDROID_NDK_VERSION: 28.2.13676358
+  ANDROID_API: android-36
+  ANDROID_BUILD_TOOLS: 36.0.0
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -43,31 +50,56 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
+          cache: gradle
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Cache Gradle
+      - name: Cache Android SDK / NDK
         uses: actions/cache@v4
+        id: android-sdk
         with:
           path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: gradle-${{ runner.os }}-${{ hashFiles('android/**/*.gradle*', 'android/**/gradle-wrapper.properties') }}
-          restore-keys: |
-            gradle-${{ runner.os }}-
+            ${{ env.ANDROID_SDK_ROOT }}/ndk/${{ env.ANDROID_NDK_VERSION }}
+            ${{ env.ANDROID_SDK_ROOT }}/platforms/${{ env.ANDROID_API }}
+            ${{ env.ANDROID_SDK_ROOT }}/build-tools/${{ env.ANDROID_BUILD_TOOLS }}
+            ${{ env.ANDROID_SDK_ROOT }}/platform-tools
+          key: android-sdk-${{ runner.os }}-ndk-${{ env.ANDROID_NDK_VERSION }}-api36-bt36
 
       - name: Install Android SDK packages
+        if: steps.android-sdk.outputs.cache-hit != 'true'
         run: |
           yes | sdkmanager --licenses
           sdkmanager \
             "platform-tools" \
-            "platforms;android-36" \
-            "build-tools;36.0.0" \
-            "ndk;28.2.13676358"
+            "platforms;${{ env.ANDROID_API }}" \
+            "build-tools;${{ env.ANDROID_BUILD_TOOLS }}" \
+            "ndk;${{ env.ANDROID_NDK_VERSION }}"
+
+      - name: Cache Go build
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.GOCACHE }}
+          key: go-build-${{ runner.os }}-${{ hashFiles('go.sum') }}-${{ hashFiles('**/*.go') }}
+          restore-keys: |
+            go-build-${{ runner.os }}-${{ hashFiles('go.sum') }}-
+            go-build-${{ runner.os }}-
+
+      - name: Cache ebitenmobile
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/.cache/go-bin/ebitenmobile
+          key: ebitenmobile-${{ runner.os }}-${{ env.EBITENMOBILE_VERSION }}
 
       - name: Install ebitenmobile
-        run: go install github.com/hajimehoshi/ebiten/v2/cmd/ebitenmobile@v2.9.9
+        run: |
+          mkdir -p "${{ github.workspace }}/.cache/go-bin"
+          if [ -f "${{ github.workspace }}/.cache/go-bin/ebitenmobile" ]; then
+            install -m 755 "${{ github.workspace }}/.cache/go-bin/ebitenmobile" "$(go env GOPATH)/bin/ebitenmobile"
+          else
+            go install github.com/hajimehoshi/ebiten/v2/cmd/ebitenmobile@${{ env.EBITENMOBILE_VERSION }}
+            install -m 755 "$(go env GOPATH)/bin/ebitenmobile" "${{ github.workspace }}/.cache/go-bin/ebitenmobile"
+          fi
 
       - name: Run unit tests (pure packages)
         run: go test -race ./internal/chess ./internal/challenge ./internal/layout ./internal/anim
@@ -77,7 +109,7 @@ jobs:
 
       - name: Bind native library (AAR)
         env:
-          ANDROID_NDK_HOME: ${{ env.ANDROID_SDK_ROOT }}/ndk/28.2.13676358
+          ANDROID_NDK_HOME: ${{ env.ANDROID_SDK_ROOT }}/ndk/${{ env.ANDROID_NDK_VERSION }}
         run: make bind
 
       - name: Build debug APK
@@ -85,7 +117,7 @@ jobs:
 
       - name: Verify 16 KB page alignment
         run: |
-          export PATH="${ANDROID_SDK_ROOT}/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH"
+          export PATH="${ANDROID_SDK_ROOT}/ndk/${{ env.ANDROID_NDK_VERSION }}/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH"
           make verify-16k
 
       - name: Name APK artifact

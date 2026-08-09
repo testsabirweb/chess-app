@@ -6,3 +6,4 @@ android/app/build/
 android/local.properties
 web/game.wasm
 web/wasm_exec.js
+.cache/
