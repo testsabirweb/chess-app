@@ -2,7 +2,6 @@ package render
 
 import (
 	"embed"
-	"math/rand/v2"
 	"path"
 	"sort"
 	"strings"
@@ -60,17 +59,16 @@ func EmojiName(i int) string {
 	return emojiNames[((i%len(emojiNames))+len(emojiNames))%len(emojiNames)]
 }
 
-// RandomEmoji picks a reward sticker from everything that is not part of the
-// interface.
-func RandomEmoji(rng *rand.Rand) int {
-	if len(rewardEmoji) == 0 {
-		return 0
-	}
-	return rewardEmoji[rng.IntN(len(rewardEmoji))]
-}
-
 // rewardEmoji indexes into emojiNames, skipping the interface icons.
 var rewardEmoji []int
+
+// RewardEmojiIndices returns every emoji index eligible as a reward sticker
+// (everything except the interface's own icons). The caller owns the result.
+func RewardEmojiIndices() []int {
+	out := make([]int, len(rewardEmoji))
+	copy(out, rewardEmoji)
+	return out
+}
 
 type emojiKey struct {
 	name string

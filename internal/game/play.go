@@ -29,6 +29,21 @@ const maxJourney = 3
 // milestoneEvery is how many stickers earn the big celebration.
 const milestoneEvery = 5
 
+// milestoneMessages are shown at random alongside the sticker count. Picked
+// from Game.RewardIntN, the same real-randomness source as the stickers
+// themselves, not the deterministic puzzle stream.
+var milestoneMessages = []string{
+	"Great job!",
+	"Keep it up!",
+	"You're a star!",
+	"Amazing work!",
+	"Wow, look at you go!",
+	"Fantastic!",
+	"You did it!",
+	"Super job!",
+	"Way to go!",
+}
+
 type PlayScene struct {
 	game      *Game
 	gen       *challenge.Generator
@@ -73,6 +88,7 @@ type PlayScene struct {
 	milestoneT      float64
 	milestoneCount  int
 	milestoneEmojis []int
+	milestoneMsg    string
 }
 
 // rewardFly is the sticker popping out of the star and flying into the tray.
@@ -315,7 +331,7 @@ func (p *PlayScene) collectStar(ctx *Context, m layout.Metrics) {
 
 	slot := trayEmojiPos(m, len(p.game.Stickers()))
 	p.reward = rewardFly{
-		emoji:    render.RandomEmoji(ctx.Rand),
+		emoji:    p.game.NextRewardEmoji(),
 		fromX:    cx,
 		fromY:    cy,
 		toX:      slot.X,
@@ -365,6 +381,7 @@ func (p *PlayScene) finishReward(ctx *Context) {
 		p.state = stateMilestone
 		p.milestoneT = 3.4
 		p.milestoneCount = total
+		p.milestoneMsg = milestoneMessages[p.game.RewardIntN(len(milestoneMessages))]
 		all := p.game.Stickers()
 		p.milestoneEmojis = all[len(all)-milestoneEvery:]
 		return
@@ -512,12 +529,14 @@ func (p *PlayScene) drawMilestone(dst *ebiten.Image, ctx *Context, m layout.Metr
 	cy := m.H * 0.44
 
 	pw := m.Safe.W
-	ph := m.Cell * 3.6
+	ph := m.Cell * 4.1
 	render.FillRoundRect(dst, cx-pw/2, cy-ph/2, pw, ph, m.Cell*0.4, render.ColorPanel)
 	render.DrawGlow(dst, cx, cy, m.W*0.5, render.Alpha(render.ColorStarGlow, 0.22))
 
 	title := fmt.Sprintf("%d Stickers!", p.milestoneCount)
-	render.DrawTextShadowed(dst, title, cx, cy-ph*0.32, render.FitTextSize(title, m.TitleSize*1.1, pw*0.8), render.ColorText)
+	render.DrawTextShadowed(dst, title, cx, cy-ph*0.36, render.FitTextSize(title, m.TitleSize*1.0, pw*0.8), render.ColorText)
+
+	render.DrawTextShadowed(dst, p.milestoneMsg, cx, cy-ph*0.14, render.FitTextSize(p.milestoneMsg, m.BodySize*1.15, pw*0.85), render.ColorStarGlow)
 
 	n := len(p.milestoneEmojis)
 	if n > 0 {
@@ -525,11 +544,11 @@ func (p *PlayScene) drawMilestone(dst *ebiten.Image, ctx *Context, m layout.Metr
 		startX := cx - step*float64(n-1)/2
 		for i, e := range p.milestoneEmojis {
 			bob := math.Sin(ctx.T*4+float64(i)*0.8) * step * 0.07
-			render.DrawEmoji(dst, render.EmojiName(e), startX+step*float64(i), cy+ph*0.04+bob, step*0.86, 0, 1)
+			render.DrawEmoji(dst, render.EmojiName(e), startX+step*float64(i), cy+ph*0.12+bob, step*0.86, 0, 1)
 		}
 	}
 	msg := "Tap to keep playing"
-	render.DrawTextShadowed(dst, msg, cx, cy+ph*0.36, render.FitTextSize(msg, m.BodySize*0.9, pw*0.8), render.ColorTextDim)
+	render.DrawTextShadowed(dst, msg, cx, cy+ph*0.40, render.FitTextSize(msg, m.BodySize*0.9, pw*0.8), render.ColorTextDim)
 }
 
 // --- footer geometry ---------------------------------------------------------

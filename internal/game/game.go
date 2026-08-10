@@ -2,11 +2,13 @@ package game
 
 import (
 	"math/rand/v2"
+	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/testsabirweb/chess-app/internal/input"
 	"github.com/testsabirweb/chess-app/internal/layout"
 	"github.com/testsabirweb/chess-app/internal/render"
+	"github.com/testsabirweb/chess-app/internal/reward"
 	"github.com/testsabirweb/chess-app/internal/sfx"
 )
 
@@ -42,6 +44,13 @@ type Game struct {
 	// and the play footer both read it.
 	stickers []int
 
+	// reward picks stickers and celebration-message indices from its own RNG
+	// stream, seeded separately from ctx.Rand below. They used to share one
+	// stream, so the emoji you got was a side effect of how many random draws
+	// that piece's move happened to cost, not a fresh coin flip - same piece,
+	// same move, same-looking pattern every time. See internal/reward.
+	reward *reward.Picker
+
 	// injected holds synthetic taps from the screenshot tool (see debug.go).
 	injected []input.Event
 	// scaleOverride lets the screenshot tool reproduce a phone's dp scale on a
@@ -52,7 +61,8 @@ type Game struct {
 func New() *Game {
 	g := &Game{
 		sfx:     sfx.NewBank(),
-		ctx:     Context{Rand: rand.New(rand.NewPCG(uint64(seedA), uint64(seedB)))},
+		ctx:     Context{Rand: rand.New(rand.NewPCG(entropySeed(puzzleSalt)))},
+		reward:  reward.NewPicker(render.RewardEmojiIndices(), rand.New(rand.NewPCG(entropySeed(rewardSalt)))),
 		scale:   1,
 		screenW: 432,
 		screenH: 960,
@@ -63,12 +73,28 @@ func New() *Game {
 	return g
 }
 
-// Fixed seed: the sequence is varied enough for a toddler and a reproducible
-// run is worth far more when debugging than a random one.
+// puzzleSalt and rewardSalt keep the puzzle generator's stream and the reward
+// stream from correlating even if entropySeed is called for both within the
+// same clock tick (see entropySeed).
 const (
-	seedA = 0x9E3779B97F4A7C15
-	seedB = 0xBF58476D1CE4E5B9
+	puzzleSalt = 0xA24BAED4963EE407
+	rewardSalt = 0x9E3779B97F4A7C15
 )
+
+// entropySeed mixes the wall clock and a caller-specific salt into two PCG
+// seed halves via a splitmix64 step, so two calls in the same nanosecond still
+// produce different, well-mixed seeds. It only needs to vary from one app
+// launch to the next and between the puzzle/reward streams, not withstand an
+// adversary - this drives which square a piece starts on and which sticker it
+// wins, nothing security-sensitive.
+func entropySeed(salt uint64) (uint64, uint64) {
+	z := uint64(time.Now().UnixNano()) + salt + 0x9E3779B97F4A7C15
+	a := z
+	z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9
+	z = (z ^ (z >> 27)) * 0x94D049BB133111EB
+	z = z ^ (z >> 31)
+	return a, z
+}
 
 // AddSticker records a reward and reports the new total.
 func (g *Game) AddSticker(emoji int) int {
@@ -77,6 +103,15 @@ func (g *Game) AddSticker(emoji int) int {
 }
 
 func (g *Game) Stickers() []int { return g.stickers }
+
+// NextRewardEmoji deals the next sticker: every reward emoji is handed out
+// exactly once before any of them repeat.
+func (g *Game) NextRewardEmoji() int { return g.reward.Next() }
+
+// RewardIntN exposes the reward RNG for other cosmetic reward-flavour picks
+// (e.g. which celebration message to show) that should share its real
+// randomness rather than the deterministic puzzle stream.
+func (g *Game) RewardIntN(n int) int { return g.reward.IntN(n) }
 
 func (g *Game) Update() error {
 	dt := 1.0 / 60.0
