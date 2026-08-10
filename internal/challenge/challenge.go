@@ -155,6 +155,11 @@ func (g *Generator) enumerate(pieceType chess.PieceType) []triple {
 				if step.Moves < g.spec.MinMoves {
 					continue
 				}
+				// Never plant the star under another piece: the piece would
+				// simply cover it up and the child would have nothing to aim at.
+				if !board.At(step.Square).IsEmpty() {
+					continue
+				}
 				out = append(out, triple{
 					piece: pieceType,
 					from:  from,

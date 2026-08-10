@@ -156,6 +156,7 @@ func main() {
 	scene := flag.String("scene", "home", "home or play")
 	piece := flag.String("piece", "rook", "piece for the play scene")
 	seed := flag.Int("stickers", 0, "pre-seed this many collected stickers")
+	dpScale := flag.Float64("scale", 0, "override the dp scale (e.g. 2.75 for a Motorola Edge 50 Neo)")
 	w := flag.Int("w", 432, "window width")
 	h := flag.Int("h", 960, "window height")
 	flag.Parse()
@@ -192,6 +193,7 @@ func main() {
 		}
 	}
 
+	g.SetScaleOverride(*dpScale)
 	sg := &shotGame{g: g, steps: steps, outDir: *out, w: *w, h: *h}
 	ebiten.SetWindowTitle("shot")
 	ebiten.SetWindowSize(*w, *h)

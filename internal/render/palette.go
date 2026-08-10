@@ -42,9 +42,9 @@ var (
 
 	// The piece that is ready to be picked up.
 	ColorPickable     = rgba(255, 206, 92, 0.55)
-	ColorPickableWash = rgba(255, 198, 74, 0.30)
+	ColorPickableWash = rgba(255, 202, 80, 0.42)
 	ColorPicked       = rgba(255, 236, 150, 0.80)
-	ColorPickedWash   = rgba(255, 214, 96, 0.48)
+	ColorPickedWash   = rgba(255, 216, 100, 0.58)
 
 	ColorStarGlow = color.RGBA{255, 226, 120, 255}
 

@@ -201,12 +201,11 @@ func (p *PlayScene) handleTap(ctx *Context, x, y float64, m layout.Metrics) {
 	sq := chess.Sq(f, r)
 
 	if !p.pieceSelected {
-		if sq == p.at {
-			ctx.SFX.Play(sfx.SndButton)
-			p.pieceSelected = true
-		} else {
-			p.oops(ctx, sq, m)
-		}
+		// Any tap on the board picks the piece up. A toddler's instinct is to
+		// tap the star, and answering that with a buzz teaches nothing; showing
+		// them what the piece can do does.
+		ctx.SFX.Play(sfx.SndButton)
+		p.pieceSelected = true
 		return
 	}
 

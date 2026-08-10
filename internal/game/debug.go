@@ -23,6 +23,10 @@ func (g *Game) SeedStickers(n int) {
 	}
 }
 
+// SetScaleOverride forces a dp scale, so the screenshot tool can render at a
+// specific phone's metrics rather than the developer's monitor.
+func (g *Game) SetScaleOverride(s float64) { g.scaleOverride = s }
+
 // PlayInfo is a snapshot of the play scene for the screenshot tool.
 type PlayInfo struct {
 	Piece  chess.Square

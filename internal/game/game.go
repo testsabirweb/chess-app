@@ -44,6 +44,9 @@ type Game struct {
 
 	// injected holds synthetic taps from the screenshot tool (see debug.go).
 	injected []input.Event
+	// scaleOverride lets the screenshot tool reproduce a phone's dp scale on a
+	// desktop monitor. Zero means "use the real device scale factor".
+	scaleOverride float64
 }
 
 func New() *Game {
@@ -112,6 +115,9 @@ func (g *Game) LayoutF(outsideWidth, outsideHeight float64) (float64, float64) {
 	s := ebiten.Monitor().DeviceScaleFactor()
 	if s <= 0 {
 		s = 1
+	}
+	if g.scaleOverride > 0 {
+		s = g.scaleOverride
 	}
 	g.scale = s
 	// The offscreen is in physical pixels, so the layout must be computed from

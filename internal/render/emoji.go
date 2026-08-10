@@ -69,16 +69,20 @@ var (
 	emojiMu    sync.Mutex
 )
 
-// quantize keeps the raster cache small: sizes snap to multiples of 8 so a
-// window resize does not rasterise a fresh set of SVGs every frame.
+// rasterSizes is the ladder every SVG raster snaps to. A sticker that shrinks
+// as it flies into the tray would otherwise rasterise itself again at every
+// size step, which is a visible hitch on a phone. Snapping means at most two or
+// three rasters per emoji for the whole animation, and a small cache.
+var rasterSizes = []int{24, 32, 48, 64, 96, 128, 192, 256, 320}
+
+// quantize rounds a pixel size up to the next entry on the ladder.
 func quantize(px int) int {
-	if px < 16 {
-		return 16
+	for _, s := range rasterSizes {
+		if px <= s {
+			return s
+		}
 	}
-	if px > 320 {
-		return 320
-	}
-	return ((px + 7) / 8) * 8
+	return rasterSizes[len(rasterSizes)-1]
 }
 
 // EmojiImage rasterises an emoji SVG at (roughly) the requested pixel size.

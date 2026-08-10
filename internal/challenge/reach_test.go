@@ -167,3 +167,15 @@ func TestMultiMoveCoversWholeBoard(t *testing.T) {
 		t.Fatalf("knight targets covered %d/25 squares", len(seen))
 	}
 }
+
+func TestTargetIsNeverUnderAPiece(t *testing.T) {
+	spec := multiMoveSpec()
+	spec.Pieces = []chess.PieceType{chess.Pawn}
+	g := challenge.NewGenerator(spec, rand.New(rand.NewPCG(31, 41)))
+	for i := 0; i < 3000; i++ {
+		c := g.Next()
+		if !c.Board.At(c.Target).IsEmpty() {
+			t.Fatalf("draw %d: star placed under a %v", i, c.Board.At(c.Target).Type)
+		}
+	}
+}
