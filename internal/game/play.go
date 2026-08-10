@@ -141,9 +141,9 @@ func (p *PlayScene) Update(ctx *Context) error {
 	}
 	p.updateReward(ctx, m)
 
-	home := homeButtonRect(m)
+	back := backButtonRect(m)
 	for _, ev := range ctx.Pointer.Pressed() {
-		if home.Contains(ev.X, ev.Y) {
+		if back.Contains(ev.X, ev.Y) {
 			ctx.SFX.Play(sfx.SndButton)
 			ctx.Switch(NewHomeScene(p.game))
 			return nil
@@ -470,23 +470,16 @@ func (p *PlayScene) drawPiece(dst *ebiten.Image, m layout.Metrics) {
 }
 
 func (p *PlayScene) drawHeader(dst *ebiten.Image, ctx *Context, m layout.Metrics) {
+	b := backButtonRect(m)
+	render.DrawChunkyButton(dst, b.X, b.Y, b.W, b.H, render.ColorBack, render.ColorBackEdge, false)
+	render.DrawChevronLeft(dst, b.X, b.Y, b.W, b.H, b.H*0.12, render.ColorText)
+
+	// Just the piece's name. The board says everything else, and anything more
+	// up here is one more thing pulling the eye away from the puzzle.
 	h := m.Header
-	cx := h.X + h.W/2
-	rowY := h.Y + h.H*0.42
-	icon := math.Min(h.H*0.6, m.Cell*0.9)
-
-	// piece  · · ·  star   - a wordless "get this there" instruction.
-	render.DrawPiece(dst, chess.Piece{Type: p.pieceType, Color: chess.White},
-		layout.Rect{X: cx - h.W*0.30 - icon/2, Y: rowY - icon/2, W: icon, H: icon}, 0, false)
-	for i := 0; i < 3; i++ {
-		x := cx + h.W*0.15*(float64(i)-1)
-		render.FillCircleSoft(dst, x, rowY, icon*0.09, render.Alpha(render.ColorText, 0.5))
-	}
-	render.DrawEmoji(dst, render.StarEmoji, cx+h.W*0.30, rowY, icon*0.85, math.Sin(ctx.T*1.6)*0.12, 1)
-
 	name := render.PieceName(p.pieceType)
-	size := render.FitTextSize(name, m.BodySize*1.1, h.W*0.5)
-	render.DrawTextShadowed(dst, name, cx, h.Y+h.H*0.87, size, render.ColorTextDim)
+	size := render.FitTextSize(name, m.BodySize*1.25, h.W*0.6)
+	render.DrawTextShadowed(dst, name, h.X+h.W/2, h.Y+h.H*0.72, size, render.ColorTextDim)
 }
 
 func (p *PlayScene) drawFooter(dst *ebiten.Image, ctx *Context, m layout.Metrics) {
@@ -511,10 +504,6 @@ func (p *PlayScene) drawFooter(dst *ebiten.Image, ctx *Context, m layout.Metrics
 		render.DrawEmoji(dst, render.EmojiName(e), slot.X, slot.Y, slot.W, 0, 1)
 	}
 
-	home := homeButtonRect(m)
-	render.DrawChunkyButton(dst, home.X, home.Y, home.W, home.H, render.ColorHome, render.ColorHomeEdge, false)
-	render.DrawEmoji(dst, "1f3e0", home.X+home.W*0.26, home.Y+home.H/2, home.H*0.6, 0, 1)
-	render.DrawTextShadowed(dst, "Home", home.X+home.W*0.60, home.Y+home.H/2, render.FitTextSize("Home", m.BodySize, home.W*0.45), render.ColorText)
 }
 
 func (p *PlayScene) drawMilestone(dst *ebiten.Image, ctx *Context, m layout.Metrics) {
@@ -563,14 +552,15 @@ func trayEmojiPos(m layout.Metrics, index int) layout.Rect {
 	return layout.Rect{X: x, Y: tr.Y + tr.H/2, W: size, H: size}
 }
 
-func homeButtonRect(m layout.Metrics) layout.Rect {
-	tr := trayRect(m)
-	top := tr.Y + tr.H + m.Footer.H*0.10
-	avail := m.Footer.Y + m.Footer.H - top
-	h := math.Max(math.Min(avail*0.78, m.MinTap*1.6), m.MinTap)
-	w := math.Min(m.Safe.W*0.60, m.MinTap*4.5)
-	y := top + math.Max(0, (avail-h)/2)
-	return layout.Rect{X: m.Safe.X + (m.Safe.W-w)/2, Y: y, W: w, H: h}
+// backButtonRect puts the only way out in the top-left corner, deliberately far
+// from where a small hand rests. A big button along the bottom edge gets pressed
+// by accident over and over; this one has to be reached for.
+//
+// It stays a full 48dp tap target - the point is to move it out of the way, not
+// to make it fiddly for the grown-up.
+func backButtonRect(m layout.Metrics) layout.Rect {
+	size := math.Max(m.MinTap, m.Safe.W*0.13)
+	return layout.Rect{X: m.Safe.X, Y: m.Safe.Y, W: size, H: size}
 }
 
 // --- small helpers -----------------------------------------------------------

@@ -58,8 +58,10 @@ var (
 	ColorPlay     = color.RGBA{58, 214, 130, 255}
 	ColorPlayHi   = color.RGBA{120, 240, 178, 255}
 	ColorPlayEdge = color.RGBA{28, 150, 88, 255}
-	ColorHome     = color.RGBA{92, 128, 232, 255}
-	ColorHomeEdge = color.RGBA{50, 78, 170, 255}
+	// The back button is deliberately quieter than the play buttons. It is
+	// chrome for the grown-up, not something to invite a small hand over.
+	ColorBack     = color.RGBA{74, 92, 156, 255}
+	ColorBackEdge = color.RGBA{44, 56, 112, 255}
 	ColorTray     = rgba(255, 255, 255, 0.10)
 	ColorTraySlot = rgba(255, 255, 255, 0.10)
 	ColorPanel    = rgba(255, 255, 255, 0.12)

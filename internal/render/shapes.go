@@ -223,6 +223,24 @@ func DrawChunkyButton(dst *ebiten.Image, x, y, w, h float64, face, edge color.RG
 	FillRoundRect(dst, x+w*0.05, y+h*0.07, w*0.90, h*0.24, r*0.9, ColorGloss)
 }
 
+// DrawChevronLeft draws a "<" inside the given box.
+func DrawChevronLeft(dst *ebiten.Image, x, y, w, h, width float64, clr color.Color) {
+	var p vector.Path
+	p.MoveTo(float32(x+w*0.62), float32(y+h*0.24))
+	p.LineTo(float32(x+w*0.36), float32(y+h*0.50))
+	p.LineTo(float32(x+w*0.62), float32(y+h*0.76))
+
+	sop := &vector.StrokeOptions{
+		Width:    float32(width),
+		LineJoin: vector.LineJoinRound,
+		LineCap:  vector.LineCapRound,
+	}
+	var dop vector.DrawPathOptions
+	dop.AntiAlias = true
+	dop.ColorScale.ScaleWithColor(clr)
+	vector.StrokePath(dst, &p, sop, &dop)
+}
+
 // DrawFilledRect is the plain axis-aligned rect used for board cells.
 func DrawFilledRect(dst *ebiten.Image, x, y, w, h float64, clr color.Color) {
 	vector.FillRect(dst, float32(x), float32(y), float32(w), float32(h), clr, false)
