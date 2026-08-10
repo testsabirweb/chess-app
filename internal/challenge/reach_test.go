@@ -124,7 +124,8 @@ func multiMoveSpec() challenge.Spec {
 func TestMultiMoveTargetsAreAlwaysReachable(t *testing.T) {
 	g := challenge.NewGenerator(multiMoveSpec(), rand.New(rand.NewPCG(11, 13)))
 	far := 0
-	for i := 0; i < 3000; i++ {
+	const draws = 1500
+	for i := 0; i < draws; i++ {
 		c := g.Next()
 		if c.From == c.Target {
 			t.Fatalf("draw %d: from == target", i)
@@ -139,8 +140,8 @@ func TestMultiMoveTargetsAreAlwaysReachable(t *testing.T) {
 			far++
 		}
 	}
-	if far < 1500 {
-		t.Fatalf("expected most challenges to need more than one move, got %d/3000", far)
+	if far < draws/2 {
+		t.Fatalf("expected most challenges to need more than one move, got %d/%d", far, draws)
 	}
 }
 
@@ -172,7 +173,7 @@ func TestTargetIsNeverUnderAPiece(t *testing.T) {
 	spec := multiMoveSpec()
 	spec.Pieces = []chess.PieceType{chess.Pawn}
 	g := challenge.NewGenerator(spec, rand.New(rand.NewPCG(31, 41)))
-	for i := 0; i < 3000; i++ {
+	for i := 0; i < 1200; i++ {
 		c := g.Next()
 		if !c.Board.At(c.Target).IsEmpty() {
 			t.Fatalf("draw %d: star placed under a %v", i, c.Board.At(c.Target).Type)

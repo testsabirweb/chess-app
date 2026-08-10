@@ -1,6 +1,30 @@
 # Toddler Chess
 
-A toddler-friendly "find the star" chess game for Android.
+A toddler-friendly "find the star" chess game for Android, built for a
+Motorola Edge 50 Neo (1080×2400, portrait).
+
+## How it plays
+
+Pick a piece on the home screen. A star appears somewhere the piece can
+**reach** — one, two or three legal moves away, not just one step. Tap the
+piece, tap one of the mint dots, and the piece hops there; repeat until it
+lands on the star. Most stars can be reached by more than one route.
+
+Landing on the star pops a random emoji sticker that flies into the tray at the
+bottom. Every fifth sticker gets a small celebration.
+
+There is no way to lose. A wrong tap gives a soft wobble and nothing else, and
+if a wandering piece can no longer reach the star, the star quietly hops to a
+square it can reach.
+
+### Knobs worth knowing
+
+| What | Where |
+|---|---|
+| Dark square colour | `render.ColorBoardD` in `internal/render/palette.go` |
+| How far the star can be planted | `maxJourney` in `internal/game/play.go` |
+| Stickers per celebration | `milestoneEvery` in `internal/game/play.go` |
+| The sticker set | drop more Twemoji SVGs into `internal/render/assets/emoji/` |
 
 ## Play on your Mac (desktop)
 
@@ -50,10 +74,14 @@ That installs and opens the app. Rebuild anytime with `make apk` then `make inst
 
 ```bash
 make test          # unit tests
+make shots         # render PNG screenshots at Edge 50 Neo metrics into shots/
 make bind          # rebuild native Android library (slow, first time ~minutes)
 make apk           # build debug APK
 make verify-16k    # Play Store page-size check
 ```
+
+`make shots` drives the game headlessly-ish through a scripted tap sequence and
+writes PNGs, which is the quickest way to check a UI change without a phone.
 
 ## CI/CD — build APK on GitHub Release (free)
 

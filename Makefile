@@ -1,10 +1,16 @@
-.PHONY: run test wasm serve tools bind apk install logs verify-16k clean
+.PHONY: run test shots wasm serve tools bind apk install logs verify-16k clean
 
 run:
 	go run .
 
 test:
 	go test -race ./...
+
+# Scripted screenshots at the Motorola Edge 50 Neo's real metrics
+# (393x873 logical at dp scale 2.75 = 1080x2400 physical).
+shots:
+	go run ./cmd/shot -out shots/home -scene home -stickers 4 -w 393 -h 873 -scale 2.75
+	go run ./cmd/shot -out shots/rook -scene play -piece rook -stickers 4 -w 393 -h 873 -scale 2.75
 
 wasm:
 	GOOS=js GOARCH=wasm go build -o web/game.wasm .
@@ -40,5 +46,6 @@ verify-16k:
 	done
 
 clean:
+	rm -rf shots
 	rm -f web/game.wasm web/wasm_exec.js
 	rm -rf android/.gradle android/build android/app/build

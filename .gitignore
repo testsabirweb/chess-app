@@ -7,3 +7,6 @@ android/local.properties
 web/game.wasm
 web/wasm_exec.js
 .cache/
+
+# scripted screenshots from `make shots`
+shots/
