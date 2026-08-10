@@ -3,6 +3,7 @@ package render
 import (
 	"bytes"
 	"image/color"
+	"math"
 	"sync"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -68,9 +69,10 @@ func DrawTextCentered(dst *ebiten.Image, s string, cx, cy float64, size float64,
 }
 
 // DrawTextShadowed is the standard label look: a soft dark offset copy behind
-// the text so it stays readable over any background.
+// the text so it stays readable over any background. The offset is small and
+// capped, otherwise large headings read as a doubled image rather than a shadow.
 func DrawTextShadowed(dst *ebiten.Image, s string, cx, cy, size float64, clr color.Color) {
-	off := size * 0.07
-	DrawTextCentered(dst, s, cx+off, cy+off*1.6, size, ColorTextShadow)
+	off := math.Min(size*0.05, 3)
+	DrawTextCentered(dst, s, cx+off*0.6, cy+off, size, ColorTextShadow)
 	DrawTextCentered(dst, s, cx, cy, size, clr)
 }

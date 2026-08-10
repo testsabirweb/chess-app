@@ -155,6 +155,7 @@ func main() {
 	out := flag.String("out", "shots", "directory for PNGs")
 	scene := flag.String("scene", "home", "home or play")
 	piece := flag.String("piece", "rook", "piece for the play scene")
+	seed := flag.Int("stickers", 0, "pre-seed this many collected stickers")
 	w := flag.Int("w", 432, "window width")
 	h := flag.Int("h", 960, "window height")
 	flag.Parse()
@@ -167,6 +168,7 @@ func main() {
 	var steps []step
 	if *scene == "play" {
 		g = game.NewInPlay(pieceByName(*piece))
+		g.SeedStickers(*seed)
 		steps = []step{
 			{frame: 30, shot: "01-idle"},
 			{frame: 34, do: tapPiece},
@@ -178,10 +180,12 @@ func main() {
 			{frame: 130, do: tapTowardStar},
 			{frame: 152, shot: "05-reward-pop"},
 			{frame: 175, shot: "06-reward-fly"},
-			{frame: 235, shot: "07-next"},
+			{frame: 200, shot: "07-milestone"},
+			{frame: 235, shot: "08-next"},
 		}
 	} else {
 		g = game.New()
+		g.SeedStickers(*seed)
 		steps = []step{
 			{frame: 30, shot: "01-home"},
 			{frame: 90, shot: "02-home-later"},

@@ -192,20 +192,6 @@ func FillRoundRect(dst *ebiten.Image, x, y, w, h, r float64, clr color.Color) {
 	vector.FillPath(dst, &p, &vector.FillOptions{FillRule: vector.FillRuleNonZero}, &dop)
 }
 
-// StrokeRoundRect outlines a rounded rectangle.
-func StrokeRoundRect(dst *ebiten.Image, x, y, w, h, r, width float64, clr color.Color) {
-	if w <= 0 || h <= 0 {
-		return
-	}
-	var p vector.Path
-	roundRectPath(&p, x, y, w, h, r)
-	sop := &vector.StrokeOptions{Width: float32(width), LineJoin: vector.LineJoinRound, LineCap: vector.LineCapRound}
-	var dop vector.DrawPathOptions
-	dop.AntiAlias = true
-	dop.ColorScale.ScaleWithColor(clr)
-	vector.StrokePath(dst, &p, sop, &dop)
-}
-
 // DrawChunkyButton is the one button look used everywhere: a soft drop shadow,
 // a darker rim underneath for depth, the face on top, and a glossy highlight.
 func DrawChunkyButton(dst *ebiten.Image, x, y, w, h float64, face, edge color.RGBA, pressed bool) {
@@ -219,38 +205,10 @@ func DrawChunkyButton(dst *ebiten.Image, x, y, w, h float64, face, edge color.RG
 	FillRoundRect(dst, x, y+lift, w, h, r, edge)
 	FillRoundRect(dst, x, y, w, h, r, face)
 	// glossy top highlight
-	FillRoundRect(dst, x+w*0.06, y+h*0.09, w*0.88, h*0.30, r*0.8, ColorGloss)
+	FillRoundRect(dst, x+w*0.05, y+h*0.07, w*0.90, h*0.24, r*0.9, ColorGloss)
 }
 
 // DrawFilledRect is the plain axis-aligned rect used for board cells.
 func DrawFilledRect(dst *ebiten.Image, x, y, w, h float64, clr color.Color) {
 	vector.FillRect(dst, float32(x), float32(y), float32(w), float32(h), clr, false)
-}
-
-// DrawFilledCircle keeps the old name working; it now uses the soft sprite.
-func DrawFilledCircle(dst *ebiten.Image, cx, cy, r float64, clr color.Color) {
-	rr, gg, bb, aa := clr.RGBA()
-	FillCircleSoft(dst, cx, cy, r, color.RGBA{uint8(rr >> 8), uint8(gg >> 8), uint8(bb >> 8), uint8(aa >> 8)})
-}
-
-// DrawPath fills and strokes a unit-box path scaled into (x, y, w, h).
-func DrawPath(dst *ebiten.Image, path *vector.Path, x, y, w, h float64, fill, stroke color.Color, strokeW float64) {
-	var p vector.Path
-	var add vector.AddPathOptions
-	add.GeoM.Scale(w, h)
-	add.GeoM.Translate(x, y)
-	p.AddPath(path, &add)
-
-	var dop vector.DrawPathOptions
-	dop.AntiAlias = true
-	dop.ColorScale.ScaleWithColor(fill)
-	vector.FillPath(dst, &p, &vector.FillOptions{FillRule: vector.FillRuleNonZero}, &dop)
-
-	if strokeW > 0 {
-		sop := &vector.StrokeOptions{Width: float32(strokeW), LineJoin: vector.LineJoinRound, LineCap: vector.LineCapRound}
-		var strokeOp vector.DrawPathOptions
-		strokeOp.AntiAlias = true
-		strokeOp.ColorScale.ScaleWithColor(stroke)
-		vector.StrokePath(dst, &p, sop, &strokeOp)
-	}
 }

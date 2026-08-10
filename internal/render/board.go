@@ -63,15 +63,17 @@ func DrawMoveHints(dst *ebiten.Image, m layout.Metrics, squares []chess.Square) 
 	}
 }
 
-// DrawPickableRing is the gentle "tap me" halo under the piece.
+// DrawPickableRing marks the piece's own square: a warm wash plus a halo, so
+// "tap the piece first" is obvious without anything flashing.
 func DrawPickableRing(dst *ebiten.Image, m layout.Metrics, sq chess.Square, pulse float64, picked bool) {
 	cr := m.CellRect(int(sq.File), int(sq.Rank))
 	cx, cy := cr.Center()
-	clr := ColorPickable
+	wash, glow := ColorPickableWash, ColorPickable
 	if picked {
-		clr = ColorPicked
+		wash, glow = ColorPickedWash, ColorPicked
 	}
-	DrawGlow(dst, cx, cy, cr.W*0.62*pulse, clr)
+	DrawFilledRect(dst, cr.X, cr.Y, cr.W, cr.H, wash)
+	DrawGlow(dst, cx, cy, cr.W*0.70*pulse, glow)
 }
 
 // DrawStar paints the target: a warm halo, then the star sticker itself,
@@ -157,13 +159,6 @@ func PieceName(t chess.PieceType) string {
 	default:
 		return ""
 	}
-}
-
-func PieceFill(c chess.Color) color.RGBA {
-	if c == chess.White {
-		return PieceFills["white"]
-	}
-	return PieceFills["black"]
 }
 
 func WobbleOffset(phase float64, amp float64) (float64, float64) {

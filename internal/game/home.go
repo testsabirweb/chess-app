@@ -60,10 +60,10 @@ func homeLayout(m layout.Metrics) homeRects {
 	colGap := s.W * 0.045
 	cw := (s.W - 2*colGap) / 3
 	// Keep the cards close to square; very tall cards look empty and make the
-	// piece art tiny relative to the button. Any height left over widens the
-	// gap between the rows rather than leaving a hole under the grid.
-	ch := math.Min((cardsH-cardsH*0.08)/2, cw*1.25)
-	rowGap := math.Min(cardsH-2*ch, cardsH*0.22)
+	// piece art tiny relative to the button. Leftover height becomes even
+	// padding above and below the grid rather than one gaping row gap.
+	rowGap := cardsH * 0.10
+	ch := math.Min((cardsH-rowGap)/2, cw*1.32)
 	gridH := ch*2 + rowGap
 	gy := y + (cardsH-gridH)/2
 	for i := 0; i < 6; i++ {

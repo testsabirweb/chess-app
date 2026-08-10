@@ -165,7 +165,7 @@ func (p *PlayScene) Update(ctx *Context) error {
 			p.land(ctx, m)
 		}
 	case stateCelebrating:
-		if p.reward.phase == 2 && !p.confetti.Alive() {
+		if p.reward.phase == 2 {
 			p.finishReward(ctx)
 		}
 	case stateMilestone:
@@ -473,14 +473,6 @@ func (p *PlayScene) drawHeader(dst *ebiten.Image, ctx *Context, m layout.Metrics
 	name := render.PieceName(p.pieceType)
 	size := render.FitTextSize(name, m.BodySize*1.1, h.W*0.5)
 	render.DrawTextShadowed(dst, name, cx, h.Y+h.H*0.87, size, render.ColorTextDim)
-
-	// Sticker count, top right.
-	if n := len(p.game.Stickers()); n > 0 {
-		bx := h.X + h.W - h.H*0.30
-		by := h.Y + h.H*0.16
-		render.DrawEmoji(dst, "1f3c6", bx-h.H*0.22, by, h.H*0.34, 0, 1)
-		render.DrawTextShadowed(dst, fmt.Sprintf("%d", n), bx+h.H*0.12, by, m.BodySize*0.9, render.ColorText)
-	}
 }
 
 func (p *PlayScene) drawFooter(dst *ebiten.Image, ctx *Context, m layout.Metrics) {
@@ -511,25 +503,29 @@ func (p *PlayScene) drawFooter(dst *ebiten.Image, ctx *Context, m layout.Metrics
 }
 
 func (p *PlayScene) drawMilestone(dst *ebiten.Image, ctx *Context, m layout.Metrics) {
-	render.DrawFilledRect(dst, 0, 0, m.W, m.H, render.Alpha(render.ColorBGTop, 0.82))
+	render.DrawFilledRect(dst, 0, 0, m.W, m.H, render.Alpha(render.ColorBGTop, 0.88))
 	cx := m.W / 2
-	cy := m.H * 0.42
+	cy := m.H * 0.44
 
-	render.DrawGlow(dst, cx, cy, m.W*0.55, render.Alpha(render.ColorStarGlow, 0.35))
+	pw := m.Safe.W
+	ph := m.Cell * 3.6
+	render.FillRoundRect(dst, cx-pw/2, cy-ph/2, pw, ph, m.Cell*0.4, render.ColorPanel)
+	render.DrawGlow(dst, cx, cy, m.W*0.5, render.Alpha(render.ColorStarGlow, 0.22))
+
 	title := fmt.Sprintf("%d Stickers!", p.milestoneCount)
-	render.DrawTextShadowed(dst, title, cx, cy-m.Cell*1.2, render.FitTextSize(title, m.TitleSize*1.2, m.W*0.8), render.ColorText)
+	render.DrawTextShadowed(dst, title, cx, cy-ph*0.32, render.FitTextSize(title, m.TitleSize*1.1, pw*0.8), render.ColorText)
 
 	n := len(p.milestoneEmojis)
 	if n > 0 {
-		step := math.Min(m.Cell*1.05, (m.W*0.86)/float64(n))
+		step := math.Min(m.Cell*0.95, (pw*0.88)/float64(n))
 		startX := cx - step*float64(n-1)/2
 		for i, e := range p.milestoneEmojis {
-			bob := math.Sin(ctx.T*5+float64(i)*0.8) * step * 0.10
-			render.DrawEmoji(dst, render.EmojiName(e), startX+step*float64(i), cy+bob, step*0.9, 0, 1)
+			bob := math.Sin(ctx.T*4+float64(i)*0.8) * step * 0.07
+			render.DrawEmoji(dst, render.EmojiName(e), startX+step*float64(i), cy+ph*0.04+bob, step*0.86, 0, 1)
 		}
 	}
 	msg := "Tap to keep playing"
-	render.DrawTextShadowed(dst, msg, cx, cy+m.Cell*1.5, render.FitTextSize(msg, m.BodySize, m.W*0.8), render.ColorTextDim)
+	render.DrawTextShadowed(dst, msg, cx, cy+ph*0.36, render.FitTextSize(msg, m.BodySize*0.9, pw*0.8), render.ColorTextDim)
 }
 
 // --- footer geometry ---------------------------------------------------------
@@ -537,8 +533,8 @@ func (p *PlayScene) drawMilestone(dst *ebiten.Image, ctx *Context, m layout.Metr
 const traySlots = 8
 
 func trayRect(m layout.Metrics) layout.Rect {
-	h := math.Min(m.Footer.H*0.40, m.MinTap*0.9)
-	return layout.Rect{X: m.Footer.X, Y: m.Footer.Y + m.Footer.H*0.04, W: m.Footer.W, H: h}
+	h := math.Min(m.Footer.H*0.40, m.MinTap*0.95)
+	return layout.Rect{X: m.Footer.X, Y: m.Footer.Y + m.Footer.H*0.12, W: m.Footer.W, H: h}
 }
 
 // trayEmojiPos returns the centre and diameter of tray slot i (X, Y are the
@@ -547,7 +543,7 @@ func trayEmojiPos(m layout.Metrics, index int) layout.Rect {
 	tr := trayRect(m)
 	slot := index % traySlots
 	step := (tr.W - tr.H*0.4) / traySlots
-	size := math.Min(step*0.9, tr.H*0.82)
+	size := math.Min(step*0.86, tr.H*0.70)
 	x := tr.X + tr.H*0.2 + step*float64(slot) + step/2
 	return layout.Rect{X: x, Y: tr.Y + tr.H/2, W: size, H: size}
 }

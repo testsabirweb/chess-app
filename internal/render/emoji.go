@@ -2,7 +2,6 @@ package render
 
 import (
 	"embed"
-	"math"
 	"math/rand/v2"
 	"path"
 	"sort"
@@ -10,7 +9,6 @@ import (
 	"sync"
 
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/testsabirweb/chess-app/internal/layout"
 )
 
 //go:embed assets/emoji/*.svg
@@ -36,9 +34,6 @@ func init() {
 	}
 	sort.Strings(emojiNames)
 }
-
-// EmojiCount is how many reward stickers exist.
-func EmojiCount() int { return len(emojiNames) }
 
 // EmojiName returns the sticker name for an index (wrapping, so callers never
 // have to bounds-check).
@@ -129,10 +124,4 @@ func DrawEmoji(dst *ebiten.Image, name string, cx, cy, size float64, rot, alpha 
 	op.ColorScale.ScaleAlpha(float32(alpha))
 	op.Filter = ebiten.FilterLinear
 	dst.DrawImage(img, op)
-}
-
-// DrawEmojiInRect centres an emoji inside a rect.
-func DrawEmojiInRect(dst *ebiten.Image, name string, r layout.Rect, alpha float64) {
-	cx, cy := r.Center()
-	DrawEmoji(dst, name, cx, cy, math.Min(r.W, r.H), 0, alpha)
 }

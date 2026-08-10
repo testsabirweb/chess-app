@@ -41,17 +41,18 @@ var (
 	ColorHintRing = rgba(255, 255, 255, 0.75)
 
 	// The piece that is ready to be picked up.
-	ColorPickable = rgba(255, 214, 120, 0.35)
-	ColorPicked   = rgba(255, 240, 160, 0.70)
+	ColorPickable     = rgba(255, 206, 92, 0.55)
+	ColorPickableWash = rgba(255, 198, 74, 0.30)
+	ColorPicked       = rgba(255, 236, 150, 0.80)
+	ColorPickedWash   = rgba(255, 214, 96, 0.48)
 
 	ColorStarGlow = color.RGBA{255, 226, 120, 255}
 
-	ColorOutline    = color.RGBA{35, 35, 50, 255}
 	ColorText       = color.RGBA{255, 255, 255, 255}
 	ColorTextDim    = color.RGBA{214, 208, 240, 255}
-	ColorTextShadow = rgba(12, 10, 34, 0.55)
+	ColorTextShadow = rgba(12, 10, 34, 0.45)
 	ColorShadow     = rgba(10, 8, 28, 0.40)
-	ColorGloss      = rgba(255, 255, 255, 0.16)
+	ColorGloss      = rgba(255, 255, 255, 0.13)
 
 	// Buttons.
 	ColorPlay     = color.RGBA{58, 214, 130, 255}
@@ -60,6 +61,7 @@ var (
 	ColorHome     = color.RGBA{92, 128, 232, 255}
 	ColorHomeEdge = color.RGBA{50, 78, 170, 255}
 	ColorTray     = rgba(255, 255, 255, 0.10)
+	ColorPanel    = rgba(255, 255, 255, 0.12)
 
 	PieceFills = map[string]color.RGBA{
 		"white": {250, 250, 255, 255},
@@ -104,9 +106,4 @@ func Alpha(c color.RGBA, a float64) color.RGBA {
 		B: uint8(float64(c.B) * a),
 		A: uint8(float64(c.A) * a),
 	}
-}
-
-// Darken multiplies the RGB channels, keeping alpha.
-func Darken(c color.RGBA, f float64) color.RGBA {
-	return color.RGBA{uint8(float64(c.R) * f), uint8(float64(c.G) * f), uint8(float64(c.B) * f), c.A}
 }

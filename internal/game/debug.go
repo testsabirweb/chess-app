@@ -15,6 +15,14 @@ func NewInPlay(pt chess.PieceType) *Game {
 	return g
 }
 
+// SeedStickers pre-fills the reward tray so the screenshot tool can reach the
+// milestone celebration without playing five rounds.
+func (g *Game) SeedStickers(n int) {
+	for i := 0; i < n; i++ {
+		g.stickers = append(g.stickers, i*7)
+	}
+}
+
 // PlayInfo is a snapshot of the play scene for the screenshot tool.
 type PlayInfo struct {
 	Piece  chess.Square
