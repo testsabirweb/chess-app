@@ -12,6 +12,10 @@ const (
 	SndCheer
 	SndOops
 	SndNear
+	SndStep
+	SndPop
+	SndHop
+	SndMilestone
 )
 
 type Bank struct {
@@ -27,6 +31,16 @@ func NewBank() *Bank {
 	b.load(SndCheer, cheerVoices())
 	b.load(SndOops, []Voice{{Freq: 392, Duration: 0.2, Amplitude: 0.06, FreqEnd: 330, Wave: WaveTriangle}})
 	b.load(SndNear, []Voice{{Freq: 523.25, Duration: 0.18, Amplitude: 0.1, Wave: WaveTriangle}})
+	// A soft tick for an ordinary step along the way to the star.
+	b.load(SndStep, []Voice{{Freq: 494, Duration: 0.09, Amplitude: 0.09, FreqEnd: 587, Wave: WaveTriangle}})
+	// The sticker popping out of the star.
+	b.load(SndPop, []Voice{{Freq: 784, Duration: 0.14, Amplitude: 0.13, FreqEnd: 1318, Wave: WaveTriangle}})
+	// The star hopping to a new square when the piece can no longer reach it.
+	b.load(SndHop, []Voice{
+		{Freq: 659.25, Duration: 0.1, Amplitude: 0.09, Wave: WaveTriangle},
+		{Freq: 880, Duration: 0.12, Amplitude: 0.09, Wave: WaveTriangle, StartDelay: 0.09},
+	})
+	b.load(SndMilestone, milestoneVoices())
 	return b
 }
 
@@ -39,6 +53,23 @@ func cheerVoices() []Voice {
 			Wave: WaveTriangle, StartDelay: float64(i) * 0.08,
 		}
 	}
+	return out
+}
+
+func milestoneVoices() []Voice {
+	notes := []float64{523.25, 659.25, 783.99, 1046.5, 1318.5, 1567.98}
+	out := make([]Voice, 0, len(notes)+2)
+	for i, f := range notes {
+		out = append(out, Voice{
+			Freq: f, Duration: 0.16, Amplitude: 0.11,
+			Wave: WaveTriangle, StartDelay: float64(i) * 0.1,
+		})
+	}
+	// A held chord to finish on.
+	out = append(out,
+		Voice{Freq: 523.25, Duration: 0.6, Amplitude: 0.08, Wave: WaveTriangle, StartDelay: 0.62},
+		Voice{Freq: 783.99, Duration: 0.6, Amplitude: 0.07, Wave: WaveTriangle, StartDelay: 0.62},
+	)
 	return out
 }
 

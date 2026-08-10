@@ -54,21 +54,18 @@ func pieceAssetName(p chess.Piece) string {
 }
 
 func pieceImage(p chess.Piece, px int) *ebiten.Image {
-	if px < 8 {
-		px = 8
-	}
+	px = quantize(px)
 	key := pieceKey{typ: p.Type, col: p.Color, px: px}
 	pieceMu.Lock()
 	defer pieceMu.Unlock()
 	if img, ok := pieceCache[key]; ok {
 		return img
 	}
-	name := pieceAssetName(p)
-	data, err := pieceFS.ReadFile(name)
+	data, err := pieceFS.ReadFile(pieceAssetName(p))
 	if err != nil {
 		panic(err)
 	}
-	img, err := rasterPieceSVG(data, px)
+	img, err := rasterSVG(data, px)
 	if err != nil {
 		panic(err)
 	}
@@ -76,7 +73,8 @@ func pieceImage(p chess.Piece, px int) *ebiten.Image {
 	return img
 }
 
-func rasterPieceSVG(data []byte, size int) (*ebiten.Image, error) {
+// rasterSVG renders an SVG into a square image of the given pixel size.
+func rasterSVG(data []byte, size int) (*ebiten.Image, error) {
 	icon, err := oksvg.ReadIconStream(bytes.NewReader(data))
 	if err != nil {
 		return nil, err
@@ -89,14 +87,28 @@ func rasterPieceSVG(data []byte, size int) (*ebiten.Image, error) {
 	return ebiten.NewImageFromImage(rgba), nil
 }
 
-func DrawPiece(dst *ebiten.Image, p chess.Piece, r layout.Rect) {
-	px := int(r.W + 0.5)
-	img := pieceImage(p, px)
-	op := &ebiten.DrawImageOptions{}
+// DrawPiece paints a piece inside the rect. On the board it gets a soft contact
+// shadow so it looks like it is standing on the square rather than printed on
+// it; on flat surfaces (the home cards, the header) pass shadow=false.
+func DrawPiece(dst *ebiten.Image, p chess.Piece, r layout.Rect, lift float64, shadow bool) {
+	if p.IsEmpty() {
+		return
+	}
+	img := pieceImage(p, int(r.W+0.5))
 	b := img.Bounds()
 	scale := r.W / float64(b.Dx())
+
+	if shadow {
+		cx := r.X + r.W/2
+		baseY := r.Y + r.H*0.92
+		shadowScale := 1.0 - clamp01(lift/(r.H*0.5))*0.35
+		DrawSoftShadow(dst, cx, baseY, r.W*0.34*shadowScale, r.H*0.12*shadowScale, ColorShadow)
+	}
+
+	op := &ebiten.DrawImageOptions{}
 	op.GeoM.Scale(scale, scale)
-	op.GeoM.Translate(r.X, r.Y+(r.H-float64(b.Dy())*scale)/2)
+	op.GeoM.Translate(r.X, r.Y+(r.H-float64(b.Dy())*scale)/2-lift)
+	op.Filter = ebiten.FilterLinear
 	dst.DrawImage(img, op)
 }
 

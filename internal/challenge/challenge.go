@@ -9,36 +9,46 @@ import (
 
 const HistorySize = 8
 
+// maxDecoyVariants is how many distinct decoy layouts the generator can build
+// for a given starting square. Variant 0 always means "no decoys".
+const maxDecoyVariants = 4
+
 type Challenge struct {
 	Board     *chess.Board
 	Piece     chess.Piece
 	From      chess.Square
 	Target    chess.Square
 	Solutions []chess.Square
+	// Moves is the shortest number of legal moves from From to Target.
+	Moves int
 }
 
 type Spec struct {
 	BoardWidth, BoardHeight int
 	Pieces                  []chess.PieceType
 	Color                   chess.Color
+	// MinMoves/MaxMoves bound how many moves the star is away. Both default to
+	// 1, which reproduces the original "star is one move away" behaviour.
+	MinMoves, MaxMoves       int
 	MinDistance, MaxDistance int // Chebyshev; 0 = unconstrained
-	Decoys                  bool
+	Decoys                   bool
 }
 
 type triple struct {
 	piece chess.PieceType
 	from  chess.Square
 	to    chess.Square
-	decoy bool
+	moves int
+	decoy uint8
 }
 
 type Generator struct {
-	spec    Spec
-	rng     *rand.Rand
-	history [HistorySize]triple
-	head    int
-	count   int
-	last    triple
+	spec      Spec
+	rng       *rand.Rand
+	history   [HistorySize]triple
+	head      int
+	count     int
+	last      triple
 	prevPiece chess.PieceType
 }
 
@@ -55,27 +65,34 @@ func NewGenerator(spec Spec, rng *rand.Rand) *Generator {
 	if spec.BoardHeight <= 0 {
 		spec.BoardHeight = 5
 	}
+	if spec.MaxMoves <= 0 {
+		spec.MaxMoves = 1
+	}
+	if spec.MinMoves <= 0 {
+		spec.MinMoves = 1
+	}
+	if spec.MinMoves > spec.MaxMoves {
+		spec.MinMoves = spec.MaxMoves
+	}
 	return &Generator{spec: spec, rng: rng}
 }
 
 func (g *Generator) Next() Challenge {
 	pieceType := g.pickPieceType()
-	candidates := g.enumerate(pieceType)
-	candidates = g.filterDistance(candidates)
-	candidates = g.filterHistory(candidates)
-	candidates = g.filterLastFromTarget(candidates)
+	all := g.enumerate(pieceType)
 
+	candidates := g.filterFar(g.filterLastFromTarget(g.filterHistory(g.filterDistance(clone(all)))))
 	if len(candidates) == 0 {
-		candidates = g.filterLastFromTarget(g.filterHistory(g.filterDistance(g.enumerate(pieceType))))
+		candidates = g.filterLastFromTarget(g.filterHistory(g.filterDistance(clone(all))))
 	}
 	if len(candidates) == 0 {
-		candidates = g.filterHistory(g.filterDistance(g.enumerate(pieceType)))
+		candidates = g.filterHistory(g.filterDistance(clone(all)))
 	}
 	if len(candidates) == 0 {
-		candidates = g.filterDistance(g.enumerate(pieceType))
+		candidates = g.filterDistance(clone(all))
 	}
 	if len(candidates) == 0 {
-		candidates = g.enumerate(pieceType)
+		candidates = all
 	}
 
 	pick := candidates[g.rng.IntN(len(candidates))]
@@ -91,7 +108,14 @@ func (g *Generator) Next() Challenge {
 		From:      pick.from,
 		Target:    pick.to,
 		Solutions: solutions,
+		Moves:     pick.moves,
 	}
+}
+
+func clone(in []triple) []triple {
+	out := make([]triple, len(in))
+	copy(out, in)
+	return out
 }
 
 func (g *Generator) pickPieceType() chess.PieceType {
@@ -114,36 +138,89 @@ func (g *Generator) pickPieceType() chess.PieceType {
 	return filtered[g.rng.IntN(len(filtered))]
 }
 
+// enumerate walks every start square, builds the board for it and breadth-first
+// searches everywhere the piece can travel within MaxMoves.
 func (g *Generator) enumerate(pieceType chess.PieceType) []triple {
 	w, h := g.spec.BoardWidth, g.spec.BoardHeight
 	out := make([]triple, 0, w*h*8)
 	for r := 0; r < h; r++ {
 		for f := 0; f < w; f++ {
 			from := chess.Sq(f, r)
-			withDecoy := g.spec.Decoys && pieceType == chess.Pawn && g.rng.IntN(3) == 0
-			board := g.boardFor(from, pieceType, withDecoy)
-			for _, to := range board.MoveTargets(from) {
-				out = append(out, triple{piece: pieceType, from: from, to: to, decoy: withDecoy})
+			variant := uint8(0)
+			if g.spec.Decoys && pieceType == chess.Pawn {
+				variant = uint8(g.rng.IntN(maxDecoyVariants))
+			}
+			board := g.boardFor(from, pieceType, variant)
+			for _, step := range Reach(board, from, g.spec.MaxMoves) {
+				if step.Moves < g.spec.MinMoves {
+					continue
+				}
+				out = append(out, triple{
+					piece: pieceType,
+					from:  from,
+					to:    step.Square,
+					moves: step.Moves,
+					decoy: variant,
+				})
 			}
 		}
 	}
 	return out
 }
 
-func (g *Generator) boardFor(from chess.Square, pieceType chess.PieceType, withDecoy bool) *chess.Board {
+// decoySquares lists, deterministically, where the enemy pieces go for a pawn
+// starting on `from` under the given variant. Decoys always sit on a
+// neighbouring file so they can never block the pawn's own file.
+func (g *Generator) decoySquares(from chess.Square, variant uint8) []chess.Square {
+	if variant == 0 {
+		return nil
+	}
+	fwd := 1
+	if g.spec.Color == chess.Black {
+		fwd = -1
+	}
+	var cands []chess.Square
+	for k := 1; k < g.spec.BoardHeight; k++ {
+		r := int(from.Rank) + k*fwd
+		if r < 0 || r >= g.spec.BoardHeight {
+			break
+		}
+		for _, df := range []int{-1, 1} {
+			f := int(from.File) + df
+			if f < 0 || f >= g.spec.BoardWidth {
+				continue
+			}
+			cands = append(cands, chess.Sq(f, r))
+		}
+	}
+	if len(cands) == 0 {
+		return nil
+	}
+	n := int(variant)
+	if n > len(cands) {
+		n = len(cands)
+	}
+	out := make([]chess.Square, 0, n)
+	seen := map[chess.Square]bool{}
+	for i := 0; i < n; i++ {
+		sq := cands[(i*3+int(variant)*5)%len(cands)]
+		if seen[sq] {
+			continue
+		}
+		seen[sq] = true
+		out = append(out, sq)
+	}
+	return out
+}
+
+func (g *Generator) boardFor(from chess.Square, pieceType chess.PieceType, variant uint8) *chess.Board {
 	b := chess.NewBoard(g.spec.BoardWidth, g.spec.BoardHeight)
 	b.Set(from, chess.Piece{Type: pieceType, Color: g.spec.Color})
 
-	if withDecoy && pieceType == chess.Pawn {
-		fwd := 1
-		if g.spec.Color == chess.Black {
-			fwd = -1
-		}
-		for _, df := range []int{1, -1} {
-			cap := chess.Sq(int(from.File)+df, int(from.Rank)+fwd)
-			if b.Contains(cap) && b.At(cap).IsEmpty() {
-				b.Set(cap, chess.Piece{Type: chess.Pawn, Color: g.spec.Color.Opponent()})
-				break
+	if variant > 0 && g.spec.Decoys && pieceType == chess.Pawn {
+		for _, sq := range g.decoySquares(from, variant) {
+			if b.Contains(sq) && b.At(sq).IsEmpty() {
+				b.Set(sq, chess.Piece{Type: chess.Pawn, Color: g.spec.Color.Opponent()})
 			}
 		}
 	}
@@ -179,6 +256,22 @@ func (g *Generator) filterDistance(c []triple) []triple {
 			continue
 		}
 		out = append(out, t)
+	}
+	return out
+}
+
+// filterFar biases most challenges towards journeys of two or more moves, so
+// the star is usually somewhere the child has to plan a little route to reach.
+// It is a preference, not a rule: it is the first rung dropped when empty.
+func (g *Generator) filterFar(c []triple) []triple {
+	if g.spec.MaxMoves < 2 || g.rng.IntN(10) >= 7 {
+		return c
+	}
+	out := c[:0]
+	for _, t := range c {
+		if t.moves >= 2 {
+			out = append(out, t)
+		}
 	}
 	return out
 }

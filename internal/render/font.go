@@ -7,8 +7,7 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
-	"github.com/hajimehoshi/ebiten/v2/vector"
-	"golang.org/x/image/font/gofont/goregular"
+	"golang.org/x/image/font/gofont/gobold"
 )
 
 var (
@@ -19,7 +18,7 @@ var (
 
 func init() {
 	var err error
-	boldSrc, err = text.NewGoTextFaceSource(bytes.NewReader(goregular.TTF))
+	boldSrc, err = text.NewGoTextFaceSource(bytes.NewReader(gobold.TTF))
 	if err != nil {
 		panic(err)
 	}
@@ -40,6 +39,24 @@ func Face(size float64) *text.GoTextFace {
 	return f
 }
 
+// MeasureText returns the drawn size of s at the given face size.
+func MeasureText(s string, size float64) (float64, float64) {
+	return text.Measure(s, Face(size), 0)
+}
+
+// FitTextSize shrinks size until s fits within maxW.
+func FitTextSize(s string, size, maxW float64) float64 {
+	for i := 0; i < 8 && size > 8; i++ {
+		w, _ := MeasureText(s, size)
+		if w <= maxW {
+			break
+		}
+		size *= 0.88
+	}
+	return size
+}
+
+// DrawTextCentered draws s centred on (cx, cy).
 func DrawTextCentered(dst *ebiten.Image, s string, cx, cy float64, size float64, clr color.Color) {
 	face := Face(size)
 	op := &text.DrawOptions{}
@@ -50,32 +67,10 @@ func DrawTextCentered(dst *ebiten.Image, s string, cx, cy float64, size float64,
 	text.Draw(dst, s, face, op)
 }
 
-func DrawFilledRect(dst *ebiten.Image, x, y, w, h float64, clr color.Color) {
-	vector.FillRect(dst, float32(x), float32(y), float32(w), float32(h), clr, false)
-}
-
-func DrawRoundedButton(dst *ebiten.Image, x, y, w, h float64, clr color.Color) {
-	vector.FillRect(dst, float32(x), float32(y), float32(w), float32(h), clr, false)
-}
-
-func DrawPath(dst *ebiten.Image, path *vector.Path, x, y, w, h float64, fill, stroke color.Color, strokeW float64) {
-	var p vector.Path
-	var add vector.AddPathOptions
-	add.GeoM.Scale(w, h)
-	add.GeoM.Translate(x, y)
-	p.AddPath(path, &add)
-
-	var dop vector.DrawPathOptions
-	dop.AntiAlias = true
-	dop.ColorScale.ScaleWithColor(fill)
-	vector.FillPath(dst, &p, &vector.FillOptions{FillRule: vector.FillRuleNonZero}, &dop)
-
-	var sop vector.StrokeOptions
-	sop.Width = float32(strokeW)
-	sop.LineJoin = vector.LineJoinRound
-	sop.LineCap = vector.LineCapRound
-	var strokeOp vector.DrawPathOptions
-	strokeOp.AntiAlias = true
-	strokeOp.ColorScale.ScaleWithColor(stroke)
-	vector.StrokePath(dst, &p, &sop, &strokeOp)
+// DrawTextShadowed is the standard label look: a soft dark offset copy behind
+// the text so it stays readable over any background.
+func DrawTextShadowed(dst *ebiten.Image, s string, cx, cy, size float64, clr color.Color) {
+	off := size * 0.07
+	DrawTextCentered(dst, s, cx+off, cy+off*1.6, size, ColorTextShadow)
+	DrawTextCentered(dst, s, cx, cy, size, clr)
 }
