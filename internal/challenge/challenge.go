@@ -146,6 +146,9 @@ func (g *Generator) enumerate(pieceType chess.PieceType) []triple {
 	for r := 0; r < h; r++ {
 		for f := 0; f < w; f++ {
 			from := chess.Sq(f, r)
+			if !g.startOK(pieceType, from) {
+				continue
+			}
 			variant := uint8(0)
 			if g.spec.Decoys && pieceType == chess.Pawn {
 				variant = uint8(g.rng.IntN(maxDecoyVariants))
@@ -171,6 +174,24 @@ func (g *Generator) enumerate(pieceType chess.PieceType) []triple {
 		}
 	}
 	return out
+}
+
+// startOK rejects starting squares a piece could never legally occupy.
+//
+// It matters for exactly one piece: the double push is allowed from the home
+// rank, which in real chess is also where pawns begin, so "on the home rank"
+// and "has not moved yet" mean the same thing. Start a pawn *behind* its home
+// rank, though, and it can step forward onto the home rank and then double
+// push - a second first move. Keeping pawns on or ahead of their home rank
+// makes the positional rule exact again.
+func (g *Generator) startOK(pieceType chess.PieceType, from chess.Square) bool {
+	if pieceType != chess.Pawn {
+		return true
+	}
+	if g.spec.Color == chess.Black {
+		return int(from.Rank) <= g.spec.BoardHeight-2
+	}
+	return int(from.Rank) >= 1
 }
 
 // decoySquares lists, deterministically, where the enemy pieces go for a pawn

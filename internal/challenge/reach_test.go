@@ -180,3 +180,39 @@ func TestTargetIsNeverUnderAPiece(t *testing.T) {
 		}
 	}
 }
+
+// A pawn gets one double push, on its very first move. Starting a pawn behind
+// its home rank used to hand it a second one: step onto the home rank, then
+// jump two.
+func TestPawnNeverGetsASecondDoublePush(t *testing.T) {
+	spec := multiMoveSpec()
+	spec.Pieces = []chess.PieceType{chess.Pawn}
+	g := challenge.NewGenerator(spec, rand.New(rand.NewPCG(77, 79)))
+
+	doubleFrom := func(b *chess.Board, at chess.Square) bool {
+		for _, m := range b.Moves(nil, at) {
+			if m.To.Rank-at.Rank == 2 || at.Rank-m.To.Rank == 2 {
+				return true
+			}
+		}
+		return false
+	}
+
+	for i := 0; i < 1500; i++ {
+		c := g.Next()
+		if c.From.Rank < 1 {
+			t.Fatalf("draw %d: pawn started behind its home rank at %+v", i, c.From)
+		}
+		// Walk to every square the pawn can get to and check that none of them
+		// still offers a two-square push.
+		for _, step := range challenge.Reach(c.Board, c.From, 3) {
+			b := c.Board.Clone()
+			b.Set(c.From, chess.Piece{})
+			b.Set(step.Square, c.Piece)
+			if doubleFrom(b, step.Square) {
+				t.Fatalf("draw %d: pawn from %+v could double push again at %+v",
+					i, c.From, step.Square)
+			}
+		}
+	}
+}
