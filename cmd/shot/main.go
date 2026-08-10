@@ -155,6 +155,7 @@ func main() {
 	out := flag.String("out", "shots", "directory for PNGs")
 	scene := flag.String("scene", "home", "home or play")
 	piece := flag.String("piece", "rook", "piece for the play scene")
+	skip := flag.Int("skip", 0, "skip this many generated puzzles first")
 	seed := flag.Int("stickers", 0, "pre-seed this many collected stickers")
 	dpScale := flag.Float64("scale", 0, "override the dp scale (e.g. 2.75 for a Motorola Edge 50 Neo)")
 	w := flag.Int("w", 432, "window width")
@@ -170,6 +171,9 @@ func main() {
 	if *scene == "play" {
 		g = game.NewInPlay(pieceByName(*piece))
 		g.SeedStickers(*seed)
+		for i := 0; i < *skip; i++ {
+			g.NextChallenge()
+		}
 		steps = []step{
 			{frame: 30, shot: "01-idle"},
 			{frame: 34, do: tapPiece},

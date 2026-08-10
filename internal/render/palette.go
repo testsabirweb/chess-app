@@ -61,6 +61,7 @@ var (
 	ColorHome     = color.RGBA{92, 128, 232, 255}
 	ColorHomeEdge = color.RGBA{50, 78, 170, 255}
 	ColorTray     = rgba(255, 255, 255, 0.10)
+	ColorTraySlot = rgba(255, 255, 255, 0.10)
 	ColorPanel    = rgba(255, 255, 255, 0.12)
 
 	PieceFills = map[string]color.RGBA{

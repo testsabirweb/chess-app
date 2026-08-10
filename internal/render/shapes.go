@@ -20,6 +20,7 @@ import (
 var (
 	spriteOnce   sync.Once
 	discSprite   *ebiten.Image
+	ringSprite   *ebiten.Image
 	glowSprite   *ebiten.Image
 	shadowSprite *ebiten.Image
 )
@@ -32,6 +33,13 @@ func initSoftSprites() {
 			// hard disc with a 2px antialiased rim
 			edge := 1.0 - d
 			return clamp01(edge * softSpriteSize / 2)
+		})
+		ringSprite = radialSprite(func(d float64) float64 {
+			// a band near the rim, softened on both edges
+			const inner, outer = 0.70, 0.98
+			mid := (inner + outer) / 2
+			half := (outer - inner) / 2
+			return clamp01((half - math.Abs(d-mid)) * softSpriteSize / 3)
 		})
 		glowSprite = radialSprite(func(d float64) float64 {
 			g := 1 - d
@@ -92,6 +100,13 @@ func drawSoft(dst *ebiten.Image, sprite *ebiten.Image, cx, cy, r float64, clr co
 func FillCircleSoft(dst *ebiten.Image, cx, cy, r float64, clr color.RGBA) {
 	initSoftSprites()
 	drawSoft(dst, discSprite, cx, cy, r, clr)
+}
+
+// FillRingSoft draws an antialiased ring, used to mark a square whose piece can
+// be captured without hiding the piece itself.
+func FillRingSoft(dst *ebiten.Image, cx, cy, r float64, clr color.RGBA) {
+	initSoftSprites()
+	drawSoft(dst, ringSprite, cx, cy, r, clr)
 }
 
 // DrawGlow paints a soft radial halo, used behind the star and the play button.

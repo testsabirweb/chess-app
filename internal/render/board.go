@@ -50,16 +50,35 @@ func DrawSquareTint(dst *ebiten.Image, m layout.Metrics, sq chess.Square, dx, dy
 	DrawFilledRect(dst, cr.X+dx, cr.Y+dy, cr.W, cr.H, clr)
 }
 
-// DrawMoveHints marks every square the piece can move to right now. The dots
+// Hint is one square the piece can move to, and what is on it.
+type Hint struct {
+	Square chess.Square
+	// Capture is true when a piece is standing there, Target when the star is.
+	Capture bool
+	Target  bool
+}
+
+// DrawMoveHints marks every square the piece can move to right now. The marks
 // are still, not pulsing - they are information, not decoration.
-func DrawMoveHints(dst *ebiten.Image, m layout.Metrics, squares []chess.Square) {
-	for _, sq := range squares {
-		cr := m.CellRect(int(sq.File), int(sq.Rank))
+//
+// A square holding a piece gets a ring rather than a dot, so the piece stays
+// readable; the star's square gets neither, because the star is already the
+// clearest possible marker.
+func DrawMoveHints(dst *ebiten.Image, m layout.Metrics, hints []Hint) {
+	for _, h := range hints {
+		cr := m.CellRect(int(h.Square.File), int(h.Square.Rank))
 		cx, cy := cr.Center()
 		DrawFilledRect(dst, cr.X, cr.Y, cr.W, cr.H, ColorHint)
-		r := cr.W * 0.16
-		FillCircleSoft(dst, cx, cy, r*1.5, Alpha(ColorHintRing, 0.30))
-		FillCircleSoft(dst, cx, cy, r, ColorHintDot)
+		switch {
+		case h.Target:
+			// nothing: the star speaks for itself
+		case h.Capture:
+			FillRingSoft(dst, cx, cy, cr.W*0.42, ColorHintDot)
+		default:
+			r := cr.W * 0.16
+			FillCircleSoft(dst, cx, cy, r*1.5, Alpha(ColorHintRing, 0.30))
+			FillCircleSoft(dst, cx, cy, r, ColorHintDot)
+		}
 	}
 }
 

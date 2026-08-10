@@ -44,6 +44,14 @@ func (g *Game) PlayInfo() (PlayInfo, bool) {
 	return PlayInfo{Piece: ps.at, Target: ps.target, Hints: ps.solutions, Board: ps.board}, true
 }
 
+// NextChallenge skips to the next generated puzzle, so the screenshot tool can
+// walk through several without playing them.
+func (g *Game) NextChallenge() {
+	if ps, ok := g.scene.(*PlayScene); ok {
+		ps.newChallenge()
+	}
+}
+
 // TapSquare queues a synthetic press at the centre of a board cell.
 func (g *Game) TapSquare(f, r int) {
 	cr := g.ctx.M.CellRect(f, r)

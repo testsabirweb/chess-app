@@ -10,8 +10,10 @@ import (
 const HistorySize = 8
 
 // maxDecoyVariants is how many distinct decoy layouts the generator can build
-// for a given starting square. Variant 0 always means "no decoys".
-const maxDecoyVariants = 4
+// for a given starting square. Variant 0 means "no decoys", and variant n
+// places n of them - three black pawns on a 5x5 reads as clutter, so it stops
+// at two.
+const maxDecoyVariants = 3
 
 type Challenge struct {
 	Board     *chess.Board

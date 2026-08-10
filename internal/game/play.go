@@ -63,6 +63,7 @@ type PlayScene struct {
 	wobbleT   float64
 	wobbleAmp float64
 
+	hintBuf      []render.Hint
 	reward       rewardFly
 	rewardActive bool
 
@@ -385,7 +386,7 @@ func (p *PlayScene) Draw(dst *ebiten.Image, ctx *Context) {
 	// Hints and the pick-me halo.
 	if p.state == stateIdle {
 		if p.pieceSelected {
-			render.DrawMoveHints(dst, m, p.solutions)
+			render.DrawMoveHints(dst, m, p.hints())
 			render.DrawPickableRing(dst, m, p.at, p.starScale, true)
 		} else {
 			render.DrawPickableRing(dst, m, p.at, p.starScale, false)
@@ -425,6 +426,20 @@ func (p *PlayScene) Draw(dst *ebiten.Image, ctx *Context) {
 		a := 1 - math.Abs(p.advanceT/advanceHalf-1)
 		render.DrawFilledRect(dst, 0, 0, m.W, m.H, render.Alpha(render.ColorBGTop, clamp01(a)*0.85))
 	}
+}
+
+// hints describes each legal destination for the renderer, reusing one buffer
+// so drawing allocates nothing.
+func (p *PlayScene) hints() []render.Hint {
+	p.hintBuf = p.hintBuf[:0]
+	for _, sq := range p.solutions {
+		p.hintBuf = append(p.hintBuf, render.Hint{
+			Square:  sq,
+			Capture: !p.board.At(sq).IsEmpty(),
+			Target:  sq == p.target,
+		})
+	}
+	return p.hintBuf
 }
 
 func (p *PlayScene) drawStar(dst *ebiten.Image, ctx *Context, m layout.Metrics) {
@@ -478,21 +493,22 @@ func (p *PlayScene) drawFooter(dst *ebiten.Image, ctx *Context, m layout.Metrics
 	tr := trayRect(m)
 	render.FillRoundRect(dst, tr.X, tr.Y, tr.W, tr.H, tr.H*0.35, render.ColorTray)
 
+	// Empty slots are drawn too, so the tray reads as a row waiting to be
+	// filled rather than one lonely sticker in a wide bar.
+	for i := 0; i < traySlots; i++ {
+		slot := trayEmojiPos(m, i)
+		render.FillCircleSoft(dst, slot.X, slot.Y, slot.W*0.30, render.ColorTraySlot)
+	}
+
 	stickers := p.game.Stickers()
-	if len(stickers) == 0 {
-		cx, cy := tr.Center()
-		msg := "Stickers appear here!"
-		render.DrawTextShadowed(dst, msg, cx, cy, render.FitTextSize(msg, m.BodySize*0.8, tr.W*0.9), render.ColorTextDim)
-	} else {
-		show := stickers
-		if len(show) > traySlots {
-			show = show[len(show)-traySlots:]
-		}
-		base := len(stickers) - len(show)
-		for i, e := range show {
-			slot := trayEmojiPos(m, base+i)
-			render.DrawEmoji(dst, render.EmojiName(e), slot.X, slot.Y, slot.W, 0, 1)
-		}
+	show := stickers
+	if len(show) > traySlots {
+		show = show[len(show)-traySlots:]
+	}
+	base := len(stickers) - len(show)
+	for i, e := range show {
+		slot := trayEmojiPos(m, base+i)
+		render.DrawEmoji(dst, render.EmojiName(e), slot.X, slot.Y, slot.W, 0, 1)
 	}
 
 	home := homeButtonRect(m)

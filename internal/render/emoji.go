@@ -21,6 +21,17 @@ var emojiNames []string
 // StarEmoji is the plain gold star used as the tap target.
 const StarEmoji = "2b50"
 
+// uiEmoji are the emoji the interface itself uses. Handing one of these out as
+// a reward is confusing - a house sticker in the tray reads as a second Home
+// button - so they are excluded from the prize pool.
+var uiEmoji = map[string]bool{
+	StarEmoji: true, // the target star
+	"1f31f":   true, // glowing star, on the Play button
+	"1f680":   true, // rocket, on the Play button
+	"1f3e0":   true, // house, on the Home button
+	"1f3c6":   true, // trophy, next to the sticker count
+}
+
 func init() {
 	entries, err := emojiFS.ReadDir("assets/emoji")
 	if err != nil {
@@ -33,6 +44,11 @@ func init() {
 		emojiNames = append(emojiNames, strings.TrimSuffix(e.Name(), ".svg"))
 	}
 	sort.Strings(emojiNames)
+	for i, n := range emojiNames {
+		if !uiEmoji[n] {
+			rewardEmoji = append(rewardEmoji, i)
+		}
+	}
 }
 
 // EmojiName returns the sticker name for an index (wrapping, so callers never
@@ -44,20 +60,17 @@ func EmojiName(i int) string {
 	return emojiNames[((i%len(emojiNames))+len(emojiNames))%len(emojiNames)]
 }
 
-// RandomEmoji picks a reward sticker, never the plain star (that one is the
-// target, so it would not feel like a prize).
+// RandomEmoji picks a reward sticker from everything that is not part of the
+// interface.
 func RandomEmoji(rng *rand.Rand) int {
-	if len(emojiNames) == 0 {
+	if len(rewardEmoji) == 0 {
 		return 0
 	}
-	for i := 0; i < 8; i++ {
-		n := rng.IntN(len(emojiNames))
-		if emojiNames[n] != StarEmoji {
-			return n
-		}
-	}
-	return 0
+	return rewardEmoji[rng.IntN(len(rewardEmoji))]
 }
+
+// rewardEmoji indexes into emojiNames, skipping the interface icons.
+var rewardEmoji []int
 
 type emojiKey struct {
 	name string
