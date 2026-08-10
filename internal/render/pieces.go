@@ -5,6 +5,7 @@ import (
 	"embed"
 	"fmt"
 	"image"
+	"strings"
 	"sync"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -53,6 +54,27 @@ func pieceAssetName(p chess.Piece) string {
 	return fmt.Sprintf("assets/pieces/cburnett/%c%c.svg", color, kind)
 }
 
+// OpponentFill recolours the black pieces. The cburnett black set is drawn with
+// plain black fills - and the pawn and queen have no fill attribute at all, so
+// they fall back to black - which on a small screen reads as a featureless
+// blob rather than a chess piece. A saturated colour keeps the silhouette and
+// makes "the other side" obvious. Set it to "#000" for the classic look.
+const OpponentFill = "#6B3FA0"
+
+// recolour rewrites an SVG's black fills. Paths that set their own fill (the
+// light detail lines, and fill="none" outlines) are left alone; everything that
+// inherits its fill picks up the wrapper group's colour.
+func recolour(data []byte, hex string) []byte {
+	s := string(data)
+	s = strings.ReplaceAll(s, `fill="#000"`, `fill="`+hex+`"`)
+	tagEnd := strings.Index(s, ">")
+	svgEnd := strings.LastIndex(s, "</svg>")
+	if tagEnd < 0 || svgEnd < 0 || svgEnd < tagEnd {
+		return data
+	}
+	return []byte(s[:tagEnd+1] + `<g fill="` + hex + `">` + s[tagEnd+1:svgEnd] + `</g>` + s[svgEnd:])
+}
+
 func pieceImage(p chess.Piece, px int) *ebiten.Image {
 	px = quantize(px)
 	key := pieceKey{typ: p.Type, col: p.Color, px: px}
@@ -64,6 +86,9 @@ func pieceImage(p chess.Piece, px int) *ebiten.Image {
 	data, err := pieceFS.ReadFile(pieceAssetName(p))
 	if err != nil {
 		panic(err)
+	}
+	if p.Color == chess.Black && OpponentFill != "#000" {
+		data = recolour(data, OpponentFill)
 	}
 	img, err := rasterSVG(data, px)
 	if err != nil {
