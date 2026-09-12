@@ -131,6 +131,9 @@ func tapTowardStar(g *game.Game) {
 			best, pick = d, s
 		}
 	}
+	if !info.Selected {
+		g.TapSquare(int(info.Piece.File), int(info.Piece.Rank))
+	}
 	g.TapSquare(int(pick.File), int(pick.Rank))
 }
 
@@ -158,6 +161,7 @@ func main() {
 	skip := flag.Int("skip", 0, "skip this many generated puzzles first")
 	seed := flag.Int("stickers", 0, "pre-seed this many collected stickers")
 	dpScale := flag.Float64("scale", 0, "override the dp scale (e.g. 2.75 for a Motorola Edge 50 Neo)")
+	hintDelay := flag.Float64("hintdelay", 0, "seconds a picked-up piece waits before its moves show (0 = no wait)")
 	w := flag.Int("w", 432, "window width")
 	h := flag.Int("h", 960, "window height")
 	flag.Parse()
@@ -170,23 +174,32 @@ func main() {
 	var steps []step
 	if *scene == "play" {
 		g = game.NewInPlay(pieceByName(*piece))
+		// The pause before the hints is off by default: these shots are for
+		// looking at the hinted board, not for sitting through the wait. Pass
+		// -hintdelay to watch the dots actually arrive.
+		g.SetHintDelay(*hintDelay)
 		g.SeedStickers(*seed)
 		for i := 0; i < *skip; i++ {
 			g.NextChallenge()
 		}
+		// wait is how long the script must hold after picking the piece up
+		// before the dots are on screen. Only the hint shot needs it; the moves
+		// themselves go through whether the dots are showing or not.
+		wait := int(*hintDelay * 60)
 		steps = []step{
 			{frame: 30, shot: "01-idle"},
 			{frame: 34, do: tapPiece},
-			{frame: 55, shot: "02-hints"},
-			{frame: 60, do: tapTowardStar},
-			{frame: 70, shot: "03-moving"},
-			{frame: 95, do: tapTowardStar},
-			{frame: 108, shot: "04-second-hop"},
-			{frame: 130, do: tapTowardStar},
-			{frame: 152, shot: "05-reward-pop"},
-			{frame: 175, shot: "06-reward-fly"},
-			{frame: 200, shot: "07-milestone"},
-			{frame: 235, shot: "08-next"},
+			{frame: 46, shot: "02a-looking"},
+			{frame: 55 + wait, shot: "02-hints"},
+			{frame: 60 + wait, do: tapTowardStar},
+			{frame: 70 + wait, shot: "03-moving"},
+			{frame: 95 + wait, do: tapTowardStar},
+			{frame: 108 + wait, shot: "04-second-hop"},
+			{frame: 130 + wait, do: tapTowardStar},
+			{frame: 152 + wait, shot: "05-reward-pop"},
+			{frame: 175 + wait, shot: "06-reward-fly"},
+			{frame: 200 + wait, shot: "07-milestone"},
+			{frame: 235 + wait, shot: "08-next"},
 		}
 	} else {
 		g = game.New()

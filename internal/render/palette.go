@@ -48,6 +48,12 @@ var (
 
 	ColorStarGlow = color.RGBA{255, 226, 120, 255}
 
+	// The dark-square bishop's scarf. A deeper grass green than the mint hint
+	// dots on purpose: the scarf sits on the board and must never read as "you
+	// can move here".
+	ColorScarf     = color.RGBA{46, 160, 67, 255}
+	ColorScarfEdge = color.RGBA{20, 62, 30, 255}
+
 	ColorText       = color.RGBA{255, 255, 255, 255}
 	ColorTextDim    = color.RGBA{214, 208, 240, 255}
 	ColorTextShadow = rgba(12, 10, 34, 0.45)

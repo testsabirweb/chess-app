@@ -29,10 +29,11 @@ func (g *Game) SetScaleOverride(s float64) { g.scaleOverride = s }
 
 // PlayInfo is a snapshot of the play scene for the screenshot tool.
 type PlayInfo struct {
-	Piece  chess.Square
-	Target chess.Square
-	Hints  []chess.Square
-	Board  *chess.Board
+	Piece    chess.Square
+	Target   chess.Square
+	Hints    []chess.Square
+	Board    *chess.Board
+	Selected bool
 }
 
 // PlayInfo reports the current play state, or ok=false on other scenes.
@@ -41,8 +42,16 @@ func (g *Game) PlayInfo() (PlayInfo, bool) {
 	if !ok {
 		return PlayInfo{}, false
 	}
-	return PlayInfo{Piece: ps.at, Target: ps.target, Hints: ps.solutions, Board: ps.board}, true
+	return PlayInfo{
+		Piece: ps.at, Target: ps.target, Hints: ps.solutions, Board: ps.board,
+		Selected: ps.pieceSelected,
+	}, true
 }
+
+// SetHintDelay overrides the pause before a picked-up piece shows its moves.
+// The screenshot tool sets it to zero: the shots exist to show what the hinted
+// board looks like, not to sit through the wait first.
+func (g *Game) SetHintDelay(d float64) { g.hintDelay = d }
 
 // NextChallenge skips to the next generated puzzle, so the screenshot tool can
 // walk through several without playing them.

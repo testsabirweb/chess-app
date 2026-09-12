@@ -44,6 +44,12 @@ func DrawBoard(dst *ebiten.Image, m layout.Metrics) {
 	}
 }
 
+// DarkSquare reports whether a square is painted in the board's dark colour.
+// It is the same parity DrawBoard uses - keep the two in step.
+func DarkSquare(sq chess.Square) bool {
+	return (int(sq.File)+int(sq.Rank))%2 == 1
+}
+
 // DrawSquareTint washes a single square in a colour (selection, wobble, hints).
 func DrawSquareTint(dst *ebiten.Image, m layout.Metrics, sq chess.Square, dx, dy float64, clr color.RGBA) {
 	cr := m.CellRect(int(sq.File), int(sq.Rank))
@@ -64,20 +70,30 @@ type Hint struct {
 // A square holding a piece gets a ring rather than a dot, so the piece stays
 // readable; the star's square gets neither, because the star is already the
 // clearest possible marker.
-func DrawMoveHints(dst *ebiten.Image, m layout.Metrics, hints []Hint) {
+//
+// fade scales the whole overlay, so the hints can arrive gently once the
+// child has had a moment to look at the board rather than snapping on under
+// their finger.
+func DrawMoveHints(dst *ebiten.Image, m layout.Metrics, hints []Hint, fade float64) {
+	if fade <= 0 {
+		return
+	}
+	if fade > 1 {
+		fade = 1
+	}
 	for _, h := range hints {
 		cr := m.CellRect(int(h.Square.File), int(h.Square.Rank))
 		cx, cy := cr.Center()
-		DrawFilledRect(dst, cr.X, cr.Y, cr.W, cr.H, ColorHint)
+		DrawFilledRect(dst, cr.X, cr.Y, cr.W, cr.H, Alpha(ColorHint, fade))
 		switch {
 		case h.Target:
 			// nothing: the star speaks for itself
 		case h.Capture:
-			FillRingSoft(dst, cx, cy, cr.W*0.42, ColorHintDot)
+			FillRingSoft(dst, cx, cy, cr.W*0.42, Alpha(ColorHintDot, fade))
 		default:
 			r := cr.W * 0.16
-			FillCircleSoft(dst, cx, cy, r*1.5, Alpha(ColorHintRing, 0.30))
-			FillCircleSoft(dst, cx, cy, r, ColorHintDot)
+			FillCircleSoft(dst, cx, cy, r*1.5, Alpha(ColorHintRing, 0.30*fade))
+			FillCircleSoft(dst, cx, cy, r, Alpha(ColorHintDot, fade))
 		}
 	}
 }

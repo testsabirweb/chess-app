@@ -56,16 +56,22 @@ type Game struct {
 	// scaleOverride lets the screenshot tool reproduce a phone's dp scale on a
 	// desktop monitor. Zero means "use the real device scale factor".
 	scaleOverride float64
+
+	// hintDelay is how long a picked-up piece waits before its legal moves are
+	// shown. Held here rather than as a constant so the screenshot tool can
+	// switch the pause off; see defaultHintDelay for why it exists.
+	hintDelay float64
 }
 
 func New() *Game {
 	g := &Game{
-		sfx:     sfx.NewBank(),
-		ctx:     Context{Rand: rand.New(rand.NewPCG(entropySeed(puzzleSalt)))},
-		reward:  reward.NewPicker(render.RewardEmojiIndices(), rand.New(rand.NewPCG(entropySeed(rewardSalt)))),
-		scale:   1,
-		screenW: 432,
-		screenH: 960,
+		sfx:       sfx.NewBank(),
+		ctx:       Context{Rand: rand.New(rand.NewPCG(entropySeed(puzzleSalt)))},
+		reward:    reward.NewPicker(render.RewardEmojiIndices(), rand.New(rand.NewPCG(entropySeed(rewardSalt)))),
+		scale:     1,
+		screenW:   432,
+		screenH:   960,
+		hintDelay: defaultHintDelay,
 	}
 	g.ctx.SFX = g.sfx
 	g.ctx.Pointer = &g.pointer

@@ -18,3 +18,16 @@ func TestPieceAssetsRasterize(t *testing.T) {
 		}
 	}
 }
+
+// The scarf marks the dark-square bishop, so its parity must stay in step with
+// the checkerboard DrawBoard paints.
+func TestDarkSquareMatchesBoardParity(t *testing.T) {
+	for _, tc := range []struct {
+		f, r int
+		dark bool
+	}{{0, 0, false}, {1, 0, true}, {0, 1, true}, {1, 1, false}, {4, 4, false}, {3, 4, true}} {
+		if got := render.DarkSquare(chess.Sq(tc.f, tc.r)); got != tc.dark {
+			t.Errorf("DarkSquare(%d,%d) = %v, want %v", tc.f, tc.r, got, tc.dark)
+		}
+	}
+}

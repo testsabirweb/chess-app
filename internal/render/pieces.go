@@ -140,6 +140,46 @@ func DrawPiece(dst *ebiten.Image, p chess.Piece, r layout.Rect, lift float64, sh
 	dst.DrawImage(img, op)
 }
 
+// scarfBand places the scarf inside the cburnett bishop's 45-unit viewBox. The
+// numbers come from the rasterised silhouette: the body is at its narrowest at
+// y=26 (13 units across, against 19 for the mitre above and 34 for the foot
+// below), which is the collar the artwork already draws a line on.
+const (
+	scarfCentreY = 27.0 / 45
+	scarfWidth   = 16.0 / 45
+	scarfHeight  = 3.6 / 45
+	scarfEdge    = 1.0 / 45
+)
+
+// DrawBishopScarf ties a scarf round the bishop's neck, marking it as the one
+// that runs on the dark squares - the same trick as the green scarf on the
+// wooden set at home.
+//
+// r and lift must be the values passed to DrawPiece for the same piece. The
+// piece SVG is square, so DrawPiece lands it in a box of side r.W centred
+// vertically in r; the scarf is positioned off that box, not off r itself.
+func DrawBishopScarf(dst *ebiten.Image, r layout.Rect, lift float64) {
+	side := r.W
+	top := r.Y + (r.H-side)/2 - lift
+	cx := r.X + side/2
+	cy := top + side*scarfCentreY
+
+	w, h := side*scarfWidth, side*scarfHeight
+	e := side * scarfEdge
+
+	// A dark edge first, so the green keeps its shape against both the white
+	// piece and the dark square it is standing on.
+	FillRoundRect(dst, cx-w/2-e, cy-h/2-e, w+2*e, h+2*e, (h+2*e)/2, ColorScarfEdge)
+	FillRoundRect(dst, cx-w/2, cy-h/2, w, h, h/2, ColorScarf)
+
+	// A short tail hanging off one side. It is what makes the band read as a
+	// scarf rather than a stripe.
+	tw, th := w*0.26, h*1.6
+	tx, ty := cx+w*0.20, cy+h*0.30
+	FillRoundRect(dst, tx-e, ty-e, tw+2*e, th+2*e, (tw+2*e)/2, ColorScarfEdge)
+	FillRoundRect(dst, tx, ty, tw, th, tw/2, ColorScarf)
+}
+
 // RasterPieceForTest exposes rasterization for tests.
 func RasterPieceForTest(p chess.Piece, px int) *ebiten.Image {
 	return pieceImage(p, px)

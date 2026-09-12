@@ -29,6 +29,19 @@ const maxJourney = 3
 // milestoneEvery is how many stickers earn the big celebration.
 const milestoneEvery = 5
 
+// defaultHintDelay is how long the piece sits picked up before the legal-move
+// dots fade in, and hintFadeIn is how long they take to arrive once it is over.
+//
+// The pause is the whole point. A child who already knows where the piece can
+// go never waits for it - tapping a legal square moves the piece whether the
+// dots are showing or not - so the delay only costs something when you were
+// going to read the overlay instead of the board. That is precisely the habit
+// it exists to interrupt.
+const (
+	defaultHintDelay = 1.5
+	hintFadeIn       = 0.45
+)
+
 // milestoneMessages are shown at random alongside the sticker count. Picked
 // from Game.RewardIntN, the same real-randomness source as the stickers
 // themselves, not the deterministic puzzle stream.
@@ -61,6 +74,16 @@ type PlayScene struct {
 	state         playState
 	pieceSelected bool
 	laidOut       bool
+
+	// hintT counts the pause down after the piece is picked up; the dots fade
+	// in over its last hintFadeIn seconds.
+	hintT float64
+
+	// optimal is the fewest moves this puzzle can be solved in from where the
+	// piece started, kept in step with the star when it relocates. Matching it
+	// earns the bigger celebration.
+	optimal int
+	perfect bool
 
 	moveTween anim.Tween
 	starPulse anim.Pulse
@@ -131,7 +154,10 @@ func (p *PlayScene) newChallenge() {
 	p.target = p.cur.Target
 	p.solutions = p.board.MoveTargets(p.at)
 	p.steps = 0
+	p.optimal = p.cur.Moves
+	p.perfect = false
 	p.pieceSelected = false
+	p.hintT = 0
 	p.laidOut = false
 }
 
@@ -154,6 +180,9 @@ func (p *PlayScene) Update(ctx *Context) error {
 	}
 	if p.wobbleT > 0 {
 		p.wobbleT -= ctx.DT
+	}
+	if p.hintT > 0 {
+		p.hintT -= ctx.DT
 	}
 	p.updateReward(ctx, m)
 
@@ -220,9 +249,8 @@ func (p *PlayScene) handleTap(ctx *Context, x, y float64, m layout.Metrics) {
 	if !p.pieceSelected {
 		// Any tap on the board picks the piece up. A toddler's instinct is to
 		// tap the star, and answering that with a buzz teaches nothing; showing
-		// them what the piece can do does.
-		ctx.SFX.Play(sfx.SndButton)
-		p.pieceSelected = true
+		// them what the piece can do does - after a beat to look first.
+		p.pickUp(ctx)
 		return
 	}
 
@@ -230,6 +258,7 @@ func (p *PlayScene) handleTap(ctx *Context, x, y float64, m layout.Metrics) {
 		// Tapping the piece again puts it back down.
 		ctx.SFX.Play(sfx.SndButton)
 		p.pieceSelected = false
+		p.hintT = 0
 		return
 	}
 
@@ -244,6 +273,28 @@ func (p *PlayScene) handleTap(ctx *Context, x, y float64, m layout.Metrics) {
 		return
 	}
 	p.oops(ctx, sq, m)
+}
+
+// pickUp holds the piece and starts the pause before its moves are shown.
+func (p *PlayScene) pickUp(ctx *Context) {
+	ctx.SFX.Play(sfx.SndButton)
+	p.pieceSelected = true
+	p.hintT = p.game.hintDelay
+}
+
+// hintFade is how strongly the move dots are showing: nothing during the
+// pause, ramping to full over its last hintFadeIn seconds.
+func (p *PlayScene) hintFade() float64 {
+	if !p.pieceSelected || p.state != stateIdle {
+		return 0
+	}
+	if p.hintT <= 0 {
+		return 1
+	}
+	if p.hintT >= hintFadeIn {
+		return 0
+	}
+	return 1 - p.hintT/hintFadeIn
 }
 
 func (p *PlayScene) oops(ctx *Context, sq chess.Square, m layout.Metrics) {
@@ -282,8 +333,12 @@ func (p *PlayScene) land(ctx *Context, m layout.Metrics) {
 	} else {
 		ctx.SFX.Play(sfx.SndStep)
 	}
-	// Keep the piece held so the next hop is a single tap.
-	p.pieceSelected = true
+	// Put the piece down again. Holding it across the whole journey left the
+	// dots up from the first tap to the last, which turns the overlay into a
+	// trail to follow to the star; dropping it means every hop starts from a
+	// clean board and earns its own look before the dots come back.
+	p.pieceSelected = false
+	p.hintT = 0
 	p.state = stateIdle
 
 	if !challenge.CanReach(p.board, p.at, p.target, maxJourney+2) {
@@ -313,7 +368,11 @@ func (p *PlayScene) relocateStar(ctx *Context) {
 	if len(far) > 0 {
 		pool = far
 	}
-	p.target = pool[ctx.Rand.IntN(len(pool))].Square
+	pick := pool[ctx.Rand.IntN(len(pool))]
+	p.target = pick.Square
+	// The moves already spent still count, so a wandering journey can no longer
+	// come out "perfect" - but it is never scored as a failure either.
+	p.optimal = p.steps + pick.Moves
 	ctx.SFX.Play(sfx.SndHop)
 }
 
@@ -322,9 +381,20 @@ func (p *PlayScene) collectStar(ctx *Context, m layout.Metrics) {
 	ctx.SFX.Play(sfx.SndCheer)
 	ctx.SFX.Play(sfx.SndPop)
 
+	// Solving it in the fewest moves gets a louder party: twice the confetti, a
+	// chime, a gold glow on the sticker and a word the grown-up can read out.
+	// Wandering still earns the same sticker, so there is nothing to lose by
+	// exploring - only something extra to win by looking first.
+	p.perfect = p.optimal > 0 && p.steps == p.optimal
+	burst := 30
+	if p.perfect {
+		burst = 60
+		ctx.SFX.Play(sfx.SndMilestone)
+	}
+
 	cr := m.CellRect(int(p.target.File), int(p.target.Rank))
 	cx, cy := cr.Center()
-	p.confetti.Burst(ctx.Rand, cx, cy, 30, m.Cell)
+	p.confetti.Burst(ctx.Rand, cx, cy, burst, m.Cell)
 	p.starPopT = 0.3
 	p.pieceSelected = false
 	p.state = stateCelebrating
@@ -403,7 +473,7 @@ func (p *PlayScene) Draw(dst *ebiten.Image, ctx *Context) {
 	// Hints and the pick-me halo.
 	if p.state == stateIdle {
 		if p.pieceSelected {
-			render.DrawMoveHints(dst, m, p.hints())
+			render.DrawMoveHints(dst, m, p.hints(), p.hintFade())
 			render.DrawPickableRing(dst, m, p.at, p.starScale, true)
 		} else {
 			render.DrawPickableRing(dst, m, p.at, p.starScale, false)
@@ -431,6 +501,9 @@ func (p *PlayScene) Draw(dst *ebiten.Image, ctx *Context) {
 	render.DrawConfetti(dst, &p.confetti, p.sprites, m.Cell)
 
 	if p.rewardActive && p.reward.size > 0 {
+		if p.perfect {
+			render.DrawGlow(dst, p.reward.x, p.reward.y, p.reward.size, render.Alpha(render.ColorStarGlow, 0.45))
+		}
 		render.DrawEmoji(dst, render.EmojiName(p.reward.emoji), p.reward.x, p.reward.y, p.reward.size, 0, 1)
 	}
 
@@ -484,6 +557,13 @@ func (p *PlayScene) drawPiece(dst *ebiten.Image, m layout.Metrics) {
 		lift = m.Cell * 0.05
 	}
 	render.DrawPiece(dst, p.cur.Piece, cr, lift, true)
+	// The dark-square bishop wears a scarf, the same way the wooden set at home
+	// has one with a scarf and one without. A bishop can never change square
+	// colour, so it goes on when the puzzle is dealt and stays on for the whole
+	// journey - including mid-hop, when p.at is still the square it left.
+	if p.cur.Piece.Type == chess.Bishop && render.DarkSquare(p.at) {
+		render.DrawBishopScarf(dst, cr, lift)
+	}
 }
 
 func (p *PlayScene) drawHeader(dst *ebiten.Image, ctx *Context, m layout.Metrics) {
@@ -492,11 +572,16 @@ func (p *PlayScene) drawHeader(dst *ebiten.Image, ctx *Context, m layout.Metrics
 	render.DrawChevronLeft(dst, b.X, b.Y, b.W, b.H, b.H*0.12, render.ColorText)
 
 	// Just the piece's name. The board says everything else, and anything more
-	// up here is one more thing pulling the eye away from the puzzle.
+	// up here is one more thing pulling the eye away from the puzzle. The one
+	// exception is the shortest-route cheer, which borrows the same slot while
+	// the confetti is falling so nothing moves.
 	h := m.Header
-	name := render.PieceName(p.pieceType)
+	name, clr := render.PieceName(p.pieceType), render.ColorTextDim
+	if p.perfect && (p.state == stateCelebrating || p.state == stateMilestone) {
+		name, clr = "Perfect!", render.ColorStarGlow
+	}
 	size := render.FitTextSize(name, m.BodySize*1.25, h.W*0.6)
-	render.DrawTextShadowed(dst, name, h.X+h.W/2, h.Y+h.H*0.72, size, render.ColorTextDim)
+	render.DrawTextShadowed(dst, name, h.X+h.W/2, h.Y+h.H*0.72, size, clr)
 }
 
 func (p *PlayScene) drawFooter(dst *ebiten.Image, ctx *Context, m layout.Metrics) {
