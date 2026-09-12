@@ -123,25 +123,20 @@ func (h *HomeScene) Draw(dst *ebiten.Image, ctx *Context) {
 	r := homeLayout(m)
 	render.DrawBackground(dst, m)
 
-	// Title with a star on each side.
+	// Title only — stars belong on the board, not in the chrome.
 	tcx, tcy := r.title.Center()
 	titleSize := render.FitTextSize("Chess Stars", m.TitleSize*1.35, r.title.W*0.66)
 	render.DrawTextShadowed(dst, "Chess Stars", tcx, tcy, titleSize, render.ColorText)
-	starSize := r.title.H * 0.42
-	render.DrawEmoji(dst, render.StarEmoji, tcx-r.title.W*0.40, tcy, starSize, 0, 1)
-	render.DrawEmoji(dst, render.StarEmoji, tcx+r.title.W*0.40, tcy, starSize, 0, 1)
 
 	// The Play button breathes just enough to read as "press me", no more.
 	pulse := 1 + math.Sin(ctx.T*2.2)*0.012
 	pw, ph := r.play.W*pulse, r.play.H*pulse
 	px := r.play.X - (pw-r.play.W)/2
 	py := r.play.Y - (ph-r.play.H)/2
-	render.DrawGlow(dst, r.play.X+r.play.W/2, r.play.Y+r.play.H/2, r.play.W*0.55, render.Alpha(render.ColorPlayHi, 0.30))
+	render.DrawGlow(dst, r.play.X+r.play.W/2, r.play.Y+r.play.H/2, r.play.W*0.55, render.Alpha(render.ColorPlayHi, 0.15))
 	render.DrawChunkyButton(dst, px, py, pw, ph, render.ColorPlay, render.ColorPlayEdge, h.pressed == 0)
 	playText := render.FitTextSize("PLAY", ph*0.44, pw*0.44)
 	render.DrawTextShadowed(dst, "PLAY", px+pw/2, py+ph*0.52, playText, render.ColorText)
-	render.DrawEmoji(dst, "1f680", px+pw*0.155, py+ph*0.52, ph*0.46, -0.5, 1)
-	render.DrawEmoji(dst, "1f31f", px+pw*0.845, py+ph*0.52, ph*0.46, 0, 1)
 
 	lcx, lcy := r.label.Center()
 	render.DrawTextShadowed(dst, "Pick a piece", lcx, lcy, m.BodySize*1.05, render.ColorTextDim)

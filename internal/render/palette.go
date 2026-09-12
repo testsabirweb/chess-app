@@ -22,52 +22,55 @@ func rgba(r, g, b uint8, a float64) color.RGBA {
 
 // The whole look is defined here. Everything else in render/ reads these.
 var (
-	// Background: deep blueberry fading into plum. A dark, saturated ground is
-	// what makes the white board, the gold star and the confetti pop.
-	ColorBGTop    = color.RGBA{34, 38, 92, 255}
-	ColorBGBottom = color.RGBA{96, 48, 124, 255}
+	// Background: a warm, near-flat charcoal. Dark enough to stay out of the
+	// way, warm enough to read as a chosen colour rather than an absence.
+	ColorBGTop    = color.RGBA{48, 45, 41, 255}
+	ColorBGBottom = color.RGBA{34, 32, 29, 255}
 
-	// Board. The light square stays white; the dark square is a noticeably
-	// deeper slate grey with a hint of blue so the two read clearly apart.
-	// Tweak ColorBoardD alone to make the dark squares lighter or darker.
-	ColorBoardL     = color.RGBA{255, 255, 255, 255}
-	ColorBoardD     = color.RGBA{140, 148, 176, 255}
-	ColorFrame      = color.RGBA{255, 206, 110, 255}
-	ColorFrameInner = color.RGBA{204, 142, 52, 255}
+	// Board: the classic cream-and-green. High value contrast keeps the light
+	// and dark squares obviously different, which the bishop's scarf depends on,
+	// and the warm cream flatters the gold star far better than a cool white.
+	ColorBoardL     = color.RGBA{238, 238, 210, 255}
+	ColorBoardD     = color.RGBA{118, 150, 86, 255}
+	ColorFrame      = color.RGBA{140, 108, 74, 255}
+	ColorFrameInner = color.RGBA{96, 72, 48, 255}
 
-	// Move hints: a soft mint dot the child learns to chase.
-	ColorHint     = rgba(60, 220, 160, 0.30)
-	ColorHintDot  = rgba(24, 176, 122, 0.95)
-	ColorHintRing = rgba(255, 255, 255, 0.75)
+	// Move hints. Blue, not mint: the board is green now, and a green dot on a
+	// green square is no signal at all.
+	ColorHint     = rgba(70, 150, 255, 0.32)
+	ColorHintDot  = rgba(28, 110, 220, 0.95)
+	ColorHintRing = rgba(255, 255, 255, 0.80)
 
-	// The piece that is ready to be picked up.
-	ColorPickable     = rgba(255, 206, 92, 0.55)
-	ColorPickableWash = rgba(255, 202, 80, 0.42)
-	ColorPicked       = rgba(255, 236, 150, 0.80)
-	ColorPickedWash   = rgba(255, 216, 100, 0.58)
+	// The piece that is ready to be picked up. Unpicked is a quiet breathe;
+	// picked is a bright wash plus a white ring so it reads even before the
+	// move dots arrive.
+	ColorPickable     = rgba(255, 206, 92, 0.40)
+	ColorPickableWash = rgba(255, 202, 80, 0.28)
+	ColorPicked       = rgba(255, 236, 150, 0.95)
+	ColorPickedWash   = rgba(255, 220, 100, 0.72)
+	ColorPickedRing   = rgba(255, 255, 255, 0.92)
 
 	ColorStarGlow = color.RGBA{255, 226, 120, 255}
 
-	// The dark-square bishop's scarf. A deeper grass green than the mint hint
-	// dots on purpose: the scarf sits on the board and must never read as "you
-	// can move here".
+	// The dark-square bishop's scarf. A deeper grass green than the board on
+	// purpose: the scarf sits on the piece body and must never read as "you can
+	// move here".
 	ColorScarf     = color.RGBA{46, 160, 67, 255}
 	ColorScarfEdge = color.RGBA{20, 62, 30, 255}
 
 	ColorText       = color.RGBA{255, 255, 255, 255}
-	ColorTextDim    = color.RGBA{214, 208, 240, 255}
-	ColorTextShadow = rgba(12, 10, 34, 0.45)
-	ColorShadow     = rgba(10, 8, 28, 0.40)
-	ColorGloss      = rgba(255, 255, 255, 0.13)
+	ColorTextDim    = color.RGBA{206, 200, 190, 255}
+	ColorTextShadow = rgba(20, 16, 10, 0.45)
+	ColorShadow     = rgba(18, 14, 8, 0.40)
+	ColorGloss      = rgba(255, 255, 255, 0.10)
 
-	// Buttons.
-	ColorPlay     = color.RGBA{58, 214, 130, 255}
-	ColorPlayHi   = color.RGBA{120, 240, 178, 255}
-	ColorPlayEdge = color.RGBA{28, 150, 88, 255}
-	// The back button is deliberately quieter than the play buttons. It is
-	// chrome for the grown-up, not something to invite a small hand over.
-	ColorBack     = color.RGBA{74, 92, 156, 255}
-	ColorBackEdge = color.RGBA{44, 56, 112, 255}
+	// PLAY in the reference's green — the one loud thing on the home screen.
+	ColorPlay     = color.RGBA{129, 182, 76, 255}
+	ColorPlayHi   = color.RGBA{160, 205, 110, 255}
+	ColorPlayEdge = color.RGBA{84, 124, 48, 255}
+	// The back button stays deliberately quiet, warm rather than blue-grey.
+	ColorBack     = color.RGBA{70, 64, 58, 255}
+	ColorBackEdge = color.RGBA{46, 42, 38, 255}
 	ColorTray     = rgba(255, 255, 255, 0.10)
 	ColorTraySlot = rgba(255, 255, 255, 0.10)
 	ColorPanel    = rgba(255, 255, 255, 0.12)
@@ -81,23 +84,23 @@ var (
 // PieceCardColors are the six card colours on the home screen, indexed the same
 // way as game.allPieces (pawn, knight, bishop, rook, queen, king).
 var PieceCardColors = []color.RGBA{
-	{255, 122, 122, 255}, // pawn   - coral
-	{255, 174, 66, 255},  // knight - orange
-	{86, 205, 138, 255},  // bishop - green
-	{78, 166, 255, 255},  // rook   - blue
-	{190, 124, 255, 255}, // queen  - purple
-	{255, 206, 88, 255},  // king   - yellow
+	{230, 106, 106, 255}, // pawn   - coral
+	{235, 150, 58, 255},  // knight - orange
+	{92, 180, 120, 255},  // bishop - green
+	{84, 150, 225, 255},  // rook   - blue
+	{168, 116, 224, 255}, // queen  - purple
+	{235, 186, 76, 255},  // king   - yellow
 }
 
 // PieceCardEdges are the darker rims that give the cards their chunky, tappable
 // look.
 var PieceCardEdges = []color.RGBA{
-	{196, 74, 74, 255},
-	{196, 118, 26, 255},
-	{42, 150, 92, 255},
-	{36, 110, 190, 255},
-	{132, 70, 200, 255},
-	{198, 148, 38, 255},
+	{158, 62, 62, 255},
+	{162, 98, 28, 255},
+	{52, 128, 80, 255},
+	{44, 100, 168, 255},
+	{114, 68, 164, 255},
+	{166, 126, 34, 255},
 }
 
 // Alpha scales a premultiplied colour's opacity. Every channel is scaled,

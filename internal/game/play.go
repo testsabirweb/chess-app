@@ -474,9 +474,9 @@ func (p *PlayScene) Draw(dst *ebiten.Image, ctx *Context) {
 	if p.state == stateIdle {
 		if p.pieceSelected {
 			render.DrawMoveHints(dst, m, p.hints(), p.hintFade())
-			render.DrawPickableRing(dst, m, p.at, p.starScale, true)
+			render.DrawPickableRing(dst, m, p.at, p.starScale, true, ctx.T)
 		} else {
-			render.DrawPickableRing(dst, m, p.at, p.starScale, false)
+			render.DrawPickableRing(dst, m, p.at, p.starScale, false, ctx.T)
 		}
 	}
 
@@ -551,7 +551,7 @@ func (p *PlayScene) drawPiece(dst *ebiten.Image, m layout.Metrics) {
 	cr.X += wx
 	lift := 0.0
 	if p.pieceSelected && p.state == stateIdle {
-		lift = m.Cell * 0.08
+		lift = m.Cell * 0.12
 	}
 	if p.state == stateMoving {
 		lift = m.Cell * 0.05

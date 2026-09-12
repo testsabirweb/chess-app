@@ -99,16 +99,23 @@ func DrawMoveHints(dst *ebiten.Image, m layout.Metrics, hints []Hint, fade float
 }
 
 // DrawPickableRing marks the piece's own square: a warm wash plus a halo, so
-// "tap the piece first" is obvious without anything flashing.
-func DrawPickableRing(dst *ebiten.Image, m layout.Metrics, sq chess.Square, pulse float64, picked bool) {
+// "tap the piece first" is obvious without anything flashing. When picked the
+// square gets a pulsing white ring and a stronger glow so it reads clearly even
+// during the pause before the move dots appear.
+func DrawPickableRing(dst *ebiten.Image, m layout.Metrics, sq chess.Square, pulse float64, picked bool, t float64) {
 	cr := m.CellRect(int(sq.File), int(sq.Rank))
 	cx, cy := cr.Center()
-	wash, glow := ColorPickableWash, ColorPickable
 	if picked {
-		wash, glow = ColorPickedWash, ColorPicked
+		bob := 0.88 + math.Sin(t*5)*0.12
+		DrawFilledRect(dst, cr.X, cr.Y, cr.W, cr.H, ColorPickedWash)
+		FillRingSoft(dst, cx, cy, cr.W*0.44*bob, ColorPickedRing)
+		DrawGlow(dst, cx, cy, cr.W*0.82*pulse*bob, ColorPicked)
+		DrawSoftShadow(dst, cx, cy+cr.H*0.06, cr.W*0.34, cr.H*0.10, Alpha(ColorShadow, 0.55))
+		return
 	}
-	DrawFilledRect(dst, cr.X, cr.Y, cr.W, cr.H, wash)
-	DrawGlow(dst, cx, cy, cr.W*0.70*pulse, glow)
+	breathe := 0.65 + math.Sin(t*2.2)*0.35
+	DrawFilledRect(dst, cr.X, cr.Y, cr.W, cr.H, Alpha(ColorPickableWash, breathe))
+	DrawGlow(dst, cx, cy, cr.W*0.42*pulse*breathe, ColorPickable)
 }
 
 // DrawStar paints the target: a warm halo, then the star sticker itself,

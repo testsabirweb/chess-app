@@ -132,6 +132,11 @@ func DrawSoftShadow(dst *ebiten.Image, cx, cy, rx, ry float64, clr color.RGBA) {
 
 // --- gradient ---------------------------------------------------------------
 
+// gradientRows is the vertical resolution of the cached background gradient.
+// The source image is one texel wide, so horizontal filtering smears off the
+// edge; keep vertical resolution high and use nearest-neighbour scaling instead.
+const gradientRows = 512
+
 type gradKey struct{ top, bottom color.RGBA }
 
 var (
@@ -146,10 +151,9 @@ func gradientImage(top, bottom color.RGBA) *ebiten.Image {
 	if img, ok := gradCache[key]; ok {
 		return img
 	}
-	const n = 256
-	src := image.NewRGBA(image.Rect(0, 0, 1, n))
-	for y := 0; y < n; y++ {
-		t := float64(y) / float64(n-1)
+	src := image.NewRGBA(image.Rect(0, 0, 1, gradientRows))
+	for y := 0; y < gradientRows; y++ {
+		t := float64(y) / float64(gradientRows-1)
 		src.Set(0, y, color.RGBA{
 			uint8(float64(top.R) + (float64(bottom.R)-float64(top.R))*t),
 			uint8(float64(top.G) + (float64(bottom.G)-float64(top.G))*t),
@@ -166,9 +170,9 @@ func gradientImage(top, bottom color.RGBA) *ebiten.Image {
 func DrawVerticalGradient(dst *ebiten.Image, x, y, w, h float64, top, bottom color.RGBA) {
 	img := gradientImage(top, bottom)
 	op := &ebiten.DrawImageOptions{}
-	op.GeoM.Scale(w, h/256)
+	op.GeoM.Scale(w, h/float64(gradientRows))
 	op.GeoM.Translate(x, y)
-	op.Filter = ebiten.FilterLinear
+	op.Filter = ebiten.FilterNearest
 	dst.DrawImage(img, op)
 }
 
