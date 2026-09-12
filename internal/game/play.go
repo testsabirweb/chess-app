@@ -38,7 +38,7 @@ const milestoneEvery = 5
 // going to read the overlay instead of the board. That is precisely the habit
 // it exists to interrupt.
 const (
-	defaultHintDelay = 1.5
+	defaultHintDelay = 2.5
 	hintFadeIn       = 0.45
 )
 
