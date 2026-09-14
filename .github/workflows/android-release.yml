@@ -113,14 +113,29 @@ jobs:
         run: make bind
 
       - name: Decode release keystore
+        id: signing
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          echo "$KEYSTORE_BASE64" | base64 -d > "${{ runner.temp }}/chessapp-release.jks"
-          echo "KEYSTORE_FILE=${{ runner.temp }}/chessapp-release.jks" >> "$GITHUB_ENV"
-          echo "KEYSTORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }}" >> "$GITHUB_ENV"
-          echo "KEY_ALIAS=${{ secrets.KEY_ALIAS }}" >> "$GITHUB_ENV"
-          echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}" >> "$GITHUB_ENV"
+          if [ -n "$KEYSTORE_BASE64" ] && [ -n "$KEYSTORE_PASSWORD" ] && [ -n "$KEY_ALIAS" ] && [ -n "$KEY_PASSWORD" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "${{ runner.temp }}/chessapp-release.jks"
+            if [ ! -s "${{ runner.temp }}/chessapp-release.jks" ]; then
+              echo "signed=false" >> "$GITHUB_OUTPUT"
+              echo "::warning::KEYSTORE_BASE64 did not decode to a valid file — building debug APK instead."
+              exit 0
+            fi
+            echo "KEYSTORE_FILE=${{ runner.temp }}/chessapp-release.jks" >> "$GITHUB_ENV"
+            echo "KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+            echo "KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
+            echo "KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
+            echo "signed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Release signing secrets not configured — building debug APK instead."
+          fi
 
       - name: Derive version from tag
         id: ver
@@ -144,12 +159,21 @@ jobs:
           echo "name=$v" >> "$GITHUB_OUTPUT"
 
       - name: Build release APK
+        if: steps.signing.outputs.signed == 'true'
         run: make apk-release versionCode=${{ steps.ver.outputs.code }} versionName=${{ steps.ver.outputs.name }}
+
+      - name: Build debug APK
+        if: steps.signing.outputs.signed != 'true'
+        run: make apk versionCode=${{ steps.ver.outputs.code }} versionName=${{ steps.ver.outputs.name }}
 
       - name: Verify 16 KB page alignment
         run: |
           export PATH="${ANDROID_SDK_ROOT}/ndk/${{ env.ANDROID_NDK_VERSION }}/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH"
-          make verify-16k APK=android/app/build/outputs/apk/release/app-release.apk
+          if [ "${{ steps.signing.outputs.signed }}" = "true" ]; then
+            make verify-16k APK=android/app/build/outputs/apk/release/app-release.apk
+          else
+            make verify-16k APK=android/app/build/outputs/apk/debug/app-debug.apk
+          fi
 
       - name: Name APK artifact
         id: apk
@@ -159,7 +183,11 @@ jobs:
           else
             name="toddler-chess-${{ inputs.tag }}.apk"
           fi
-          cp android/app/build/outputs/apk/release/app-release.apk "$name"
+          if [ "${{ steps.signing.outputs.signed }}" = "true" ]; then
+            cp android/app/build/outputs/apk/release/app-release.apk "$name"
+          else
+            cp android/app/build/outputs/apk/debug/app-debug.apk "$name"
+          fi
           echo "path=$name" >> "$GITHUB_OUTPUT"
 
       - name: Upload workflow artifact

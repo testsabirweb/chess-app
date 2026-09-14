@@ -19,10 +19,13 @@ android {
         create("release") {
             val ks = System.getenv("KEYSTORE_FILE")
             if (ks != null) {
-                storeFile = file(ks)
-                storePassword = System.getenv("KEYSTORE_PASSWORD")
-                keyAlias = System.getenv("KEY_ALIAS")
-                keyPassword = System.getenv("KEY_PASSWORD")
+                val store = file(ks)
+                if (store.isFile && store.length() > 0) {
+                    storeFile = store
+                    storePassword = System.getenv("KEYSTORE_PASSWORD")
+                    keyAlias = System.getenv("KEY_ALIAS")
+                    keyPassword = System.getenv("KEY_PASSWORD")
+                }
             }
         }
     }
@@ -30,7 +33,8 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
-            if (System.getenv("KEYSTORE_FILE") != null) {
+            val ks = System.getenv("KEYSTORE_FILE")
+            if (ks != null && file(ks).isFile && file(ks).length() > 0) {
                 signingConfig = signingConfigs.getByName("release")
             }
         }

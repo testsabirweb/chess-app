@@ -31,7 +31,9 @@ bind:
 	  -javapkg com.testsabirweb.chessapp -o android/app/libs/chessapp.aar -v ./mobile
 
 apk:
-	cd android && ./gradlew assembleDebug
+	cd android && ./gradlew assembleDebug \
+	  $(if $(versionCode),-PversionCode=$(versionCode)) \
+	  $(if $(versionName),-PversionName=$(versionName))
 
 apk-release:
 	cd android && ./gradlew assembleRelease \
