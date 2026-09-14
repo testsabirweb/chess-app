@@ -433,11 +433,9 @@ func (p *PlayScene) setTrailFromPath(fade float64) {
 }
 
 func (p *PlayScene) land(ctx *Context, m layout.Metrics) {
-	p.setTrailFromPath(1)
-	if p.movePath.n >= 3 {
+	if p.pieceType == chess.Knight {
+		p.setTrailFromPath(1)
 		p.trailHold = trailHoldDur
-	} else {
-		p.trailHold = trailHoldDur * 0.5
 	}
 
 	captured := !p.board.At(p.moveTo).IsEmpty()
