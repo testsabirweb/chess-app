@@ -44,3 +44,17 @@ func (t *Tracker) Update() {
 }
 
 func (t *Tracker) Pressed() []Event { return t.JustPressed }
+
+// Held returns the current touch or mouse position while a pointer is down.
+func (t *Tracker) Held() (Event, bool) {
+	if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
+		x, y := ebiten.CursorPosition()
+		return Event{X: float64(x), Y: float64(y), Pressed: true}, true
+	}
+	ids := ebiten.TouchIDs()
+	if len(ids) > 0 {
+		x, y := ebiten.TouchPosition(ids[0])
+		return Event{X: float64(x), Y: float64(y), Pressed: true}, true
+	}
+	return Event{}, false
+}

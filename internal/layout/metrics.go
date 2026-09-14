@@ -31,7 +31,7 @@ func Compute(w, h, scale float64, in Insets, cols, rows int) Metrics {
 	m := Metrics{
 		W: w, H: h, Scale: scale,
 		Cols: cols, Rows: rows,
-		MinTap: dp(scale, minTapDP),
+		MinTap:   dp(scale, minTapDP),
 		Portrait: h >= w,
 	}
 
@@ -47,12 +47,28 @@ func Compute(w, h, scale float64, in Insets, cols, rows int) Metrics {
 	}
 
 	gap := dp(scale, 8)
+
+	if m.Portrait {
+		computePortrait(&m, gap, scale)
+	} else {
+		computeLandscape(&m, gap)
+	}
+
+	m.Cell = m.Board.W / float64(cols)
+	m.TitleSize = clamp(m.Cell*0.45, dp(scale, 20), dp(scale, 56))
+	m.BodySize = clamp(m.Cell*0.28, dp(scale, 14), dp(scale, 32))
+	return m
+}
+
+func computePortrait(m *Metrics, gap, scale float64) {
 	hdrMin := dp(scale, 56)
 	ftrMin := dp(scale, 72)
 
 	side := math.Min(m.Safe.W, m.Safe.H-hdrMin-ftrMin-2*gap)
-	if side < m.MinTap*float64(cols) {
-		side = math.Min(m.MinTap*float64(cols), math.Min(m.Safe.W, m.Safe.H))
+	side = math.Min(side, m.Safe.W)
+	side = math.Min(side, m.Safe.H-2*gap)
+	if side < 0 {
+		side = 0
 	}
 
 	remain := m.Safe.H - side - 2*gap
@@ -83,11 +99,41 @@ func Compute(w, h, scale float64, in Insets, cols, rows int) Metrics {
 		Y: m.Board.Y + m.Board.H + gap,
 		W: m.Safe.W, H: ftr,
 	}
+}
 
-	m.Cell = m.Board.W / float64(cols)
-	m.TitleSize = clamp(m.Cell*0.45, dp(scale, 20), dp(scale, 56))
-	m.BodySize = clamp(m.Cell*0.28, dp(scale, 14), dp(scale, 32))
-	return m
+func computeLandscape(m *Metrics, gap float64) {
+	minSide := m.MinTap * float64(m.Cols)
+	maxSide := math.Min(m.Safe.H-2*gap, m.Safe.W-2*gap)
+
+	side := math.Min(m.Safe.H-2*gap, m.Safe.W*0.62)
+	panelW := m.Safe.W - side - 2*gap
+	if panelW < m.MinTap*3 {
+		panelW = m.MinTap * 3
+		side = math.Min(m.Safe.H-2*gap, m.Safe.W-panelW-2*gap)
+	}
+	if side < minSide && minSide <= maxSide {
+		side = math.Min(minSide, m.Safe.H-2*gap)
+		panelW = m.Safe.W - side - 2*gap
+		if panelW < m.MinTap {
+			side = math.Max(0, math.Min(m.Safe.H-2*gap, m.Safe.W-m.MinTap-2*gap))
+			panelW = m.Safe.W - side - 2*gap
+		}
+	}
+	if side < 0 {
+		side = 0
+	}
+	if panelW < 0 {
+		panelW = 0
+	}
+
+	m.Board = Rect{
+		X: m.Safe.X + gap,
+		Y: m.Safe.Y + (m.Safe.H-side)/2,
+		W: side, H: side,
+	}
+	panelX := m.Board.X + side + gap
+	m.Header = Rect{X: panelX, Y: m.Safe.Y, W: panelW, H: m.Safe.H * 0.35}
+	m.Footer = Rect{X: panelX, Y: m.Safe.Y + m.Safe.H*0.45, W: panelW, H: m.Safe.H * 0.55}
 }
 
 func (m Metrics) CellRect(f, r int) Rect {
@@ -117,7 +163,6 @@ func (m Metrics) HitStar(x, y float64, star chess.Square, solutions []chess.Squa
 	if dx*dx+dy*dy > radius*radius {
 		return false
 	}
-	// Don't steal taps on a different solution square.
 	if f, r, ok := m.HitCell(x, y); ok {
 		sq := chess.Sq(f, r)
 		if sq != star {

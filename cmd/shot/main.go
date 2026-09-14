@@ -186,20 +186,28 @@ func main() {
 		// before the dots are on screen. Only the hint shot needs it; the moves
 		// themselves go through whether the dots are showing or not.
 		wait := int(*hintDelay * 60)
+		// Most pieces hop in 0.42s (~25 frames at 60fps); the knight's L-move
+		// takes 0.62s (~38 frames). Later tap/shot frames scale from moveDur so
+		// the script does not tap mid-animation.
+		moveDur := 25
+		if strings.ToLower(*piece) == "knight" {
+			moveDur = 38
+		}
+		base := 60 + wait
 		steps = []step{
 			{frame: 30, shot: "01-idle"},
 			{frame: 34, do: tapPiece},
 			{frame: 46, shot: "02a-looking"},
 			{frame: 55 + wait, shot: "02-hints"},
-			{frame: 60 + wait, do: tapTowardStar},
-			{frame: 70 + wait, shot: "03-moving"},
-			{frame: 95 + wait, do: tapTowardStar},
-			{frame: 108 + wait, shot: "04-second-hop"},
-			{frame: 130 + wait, do: tapTowardStar},
-			{frame: 152 + wait, shot: "05-reward-pop"},
-			{frame: 175 + wait, shot: "06-reward-fly"},
-			{frame: 200 + wait, shot: "07-milestone"},
-			{frame: 235 + wait, shot: "08-next"},
+			{frame: base, do: tapTowardStar},
+			{frame: base + 10, shot: "03-moving"},
+			{frame: base + moveDur + 8, do: tapTowardStar},
+			{frame: base + moveDur + 20, shot: "04-second-hop"},
+			{frame: base + 2*moveDur + 16, do: tapTowardStar},
+			{frame: base + 2*moveDur + 28, shot: "05-reward-pop"},
+			{frame: base + 2*moveDur + 51, shot: "06-reward-fly"},
+			{frame: base + 2*moveDur + 76, shot: "07-milestone"},
+			{frame: base + 2*moveDur + 111, shot: "08-next"},
 		}
 	} else {
 		g = game.New()

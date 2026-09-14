@@ -76,8 +76,10 @@ That installs and opens the app. Rebuild anytime with `make apk` then `make inst
 make test          # unit tests
 make shots         # render PNG screenshots at Edge 50 Neo metrics into shots/
 make bind          # rebuild native Android library (slow, first time ~minutes)
-make apk           # build debug APK
-make verify-16k    # Play Store page-size check
+make apk           # build debug APK (local dev)
+make apk-release   # build release APK (unsigned locally unless KEYSTORE_* env set)
+make install-release  # USB install release APK (uninstall debug build first)
+make verify-16k    # Play Store page-size check (release APK if present, else debug)
 ```
 
 `make shots` drives the game headlessly-ish through a scripted tap sequence and
@@ -85,7 +87,30 @@ writes PNGs, which is the quickest way to check a UI change without a phone.
 
 ## CI/CD — build APK on GitHub Release (free)
 
-The workflow in `.github/workflows/android-release.yml` runs **only when you publish a GitHub Release**, not on every push. It runs tests, builds the APK, checks 16 KB alignment, and attaches the APK to the release.
+The workflow in `.github/workflows/android-release.yml` runs **only when you publish a GitHub Release**, not on every push. It runs tests, builds a **release-signed** APK, checks 16 KB alignment, and attaches the APK to the release.
+
+### One-time: release signing secrets
+
+CI builds with a persistent release keystore (not the debug key). Add these repository secrets under **Settings → Secrets and variables → Actions**:
+
+| Secret | Value |
+|--------|-------|
+| `KEYSTORE_BASE64` | Base64 of your `.jks` file |
+| `KEYSTORE_PASSWORD` | Keystore password |
+| `KEY_ALIAS` | Key alias (e.g. `chessapp`) |
+| `KEY_PASSWORD` | Key password |
+
+Generate a keystore once, back it up somewhere safe, and never commit it:
+
+```bash
+keytool -genkeypair -v -keystore chessapp-release.jks \
+  -alias chessapp -keyalg RSA -keysize 4096 -validity 10000
+base64 -i chessapp-release.jks | pbcopy   # paste into KEYSTORE_BASE64
+```
+
+Losing the keystore means every future user must uninstall before installing again — it cannot be recovered.
+
+**First install after switching from debug:** uninstall the old app on the device, then install the release APK. After that, updates install in place.
 
 ### How to get an APK from CI
 

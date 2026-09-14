@@ -5,6 +5,7 @@ import (
 	"math"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/vector"
 	"github.com/testsabirweb/chess-app/internal/anim"
 	"github.com/testsabirweb/chess-app/internal/chess"
 	"github.com/testsabirweb/chess-app/internal/layout"
@@ -95,6 +96,45 @@ func DrawMoveHints(dst *ebiten.Image, m layout.Metrics, hints []Hint, fade float
 			FillCircleSoft(dst, cx, cy, r*1.5, Alpha(ColorHintRing, 0.30*fade))
 			FillCircleSoft(dst, cx, cy, r, Alpha(ColorHintDot, fade))
 		}
+	}
+}
+
+// DrawMoveTrail draws the path a piece took, so the shape of the move stays on
+// screen for a moment after the piece has landed. fade scales it out.
+func DrawMoveTrail(dst *ebiten.Image, m layout.Metrics, pts [][2]float64, fade float64) {
+	if fade <= 0 || len(pts) < 2 {
+		return
+	}
+	if fade > 1 {
+		fade = 1
+	}
+	width := m.Cell * 0.22
+	line := Alpha(ColorTrail, 0.95*fade)
+	glow := Alpha(ColorTrailGlow, 0.55*fade)
+
+	var p vector.Path
+	p.MoveTo(float32(pts[0][0]), float32(pts[0][1]))
+	for i := 1; i < len(pts); i++ {
+		p.LineTo(float32(pts[i][0]), float32(pts[i][1]))
+	}
+	sop := &vector.StrokeOptions{
+		Width:    float32(width * 1.55),
+		LineJoin: vector.LineJoinRound,
+		LineCap:  vector.LineCapRound,
+	}
+	var dop vector.DrawPathOptions
+	dop.AntiAlias = true
+	dop.ColorScale.ScaleWithColor(glow)
+	vector.StrokePath(dst, &p, sop, &dop)
+
+	sop.Width = float32(width)
+	dop.ColorScale.ScaleWithColor(line)
+	vector.StrokePath(dst, &p, sop, &dop)
+
+	dotR := width * 0.78
+	for i := 1; i < len(pts)-1; i++ {
+		FillCircleSoft(dst, pts[i][0], pts[i][1], dotR*1.35, Alpha(ColorTrailGlow, 0.45*fade))
+		FillCircleSoft(dst, pts[i][0], pts[i][1], dotR, Alpha(ColorTrail, 0.98*fade))
 	}
 }
 

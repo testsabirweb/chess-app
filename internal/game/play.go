@@ -57,6 +57,15 @@ var milestoneMessages = []string{
 	"Way to go!",
 }
 
+// movePath holds the waypoints a piece travels through during a move. Most
+// pieces go straight from A to B (n=2); the knight takes an L via a corner (n=3).
+type movePath struct {
+	pts  [3]struct{ x, y float64 }
+	n    int     // 2 or 3
+	leg  int     // which leg is running
+	hold float64 // seconds left of the pause at the corner
+}
+
 type PlayScene struct {
 	game      *Game
 	gen       *challenge.Generator
@@ -86,6 +95,15 @@ type PlayScene struct {
 	perfect bool
 
 	moveTween anim.Tween
+	movePath  movePath
+	arcScale  float64
+
+	trailPts  [3][2]float64
+	trailN    int
+	trailFade float64
+	// trailHold keeps the trail at full strength before it begins fading out.
+	trailHold float64
+
 	starPulse anim.Pulse
 	confetti  anim.Confetti
 	sprites   *render.Sprites
@@ -112,6 +130,9 @@ type PlayScene struct {
 	milestoneCount  int
 	milestoneEmojis []int
 	milestoneMsg    string
+
+	backHoldT    float64
+	backInstallF bool
 }
 
 // rewardFly is the sticker popping out of the star and flying into the tray.
@@ -184,15 +205,35 @@ func (p *PlayScene) Update(ctx *Context) error {
 	if p.hintT > 0 {
 		p.hintT -= ctx.DT
 	}
+	if p.trailHold > 0 {
+		p.trailHold -= ctx.DT
+	} else if p.trailFade > 0 {
+		p.trailFade -= ctx.DT / trailFadeDur
+		if p.trailFade < 0 {
+			p.trailFade = 0
+		}
+	}
 	p.updateReward(ctx, m)
 
 	back := backButtonRect(m)
-	for _, ev := range ctx.Pointer.Pressed() {
-		if back.Contains(ev.X, ev.Y) {
+	for _, ev := range ctx.Pointer.JustReleased {
+		if back.Contains(ev.X, ev.Y) && p.backHoldT > 0 && p.backHoldT < 2.0 {
 			ctx.SFX.Play(sfx.SndButton)
 			ctx.Switch(NewHomeScene(p.game))
 			return nil
 		}
+	}
+	if held, ok := ctx.Pointer.Held(); ok && back.Contains(held.X, held.Y) {
+		p.backHoldT += ctx.DT
+		if p.backHoldT >= 2.0 && UpdateReady() && !p.backInstallF {
+			RequestInstallUpdate()
+			p.backInstallF = true
+		}
+	} else {
+		p.backHoldT = 0
+		p.backInstallF = false
+	}
+	for _, ev := range ctx.Pointer.Pressed() {
 		switch p.state {
 		case stateIdle:
 			p.handleTap(ctx, ev.X, ev.Y, m)
@@ -203,12 +244,39 @@ func (p *PlayScene) Update(ctx *Context) error {
 
 	switch p.state {
 	case stateMoving:
-		prog := p.moveTween.Update(ctx.DT)
-		arc := -math.Sin(prog*math.Pi) * m.Cell * 0.28
-		p.pieceX = lerp(p.fromX, p.toX, prog)
-		p.pieceY = lerp(p.fromY, p.toY, prog) + arc
-		if p.moveTween.Done() {
-			p.land(ctx, m)
+		if p.movePath.hold > 0 {
+			p.movePath.hold -= ctx.DT
+			end := p.movePath.leg + 1
+			p.pieceX = p.movePath.pts[end].x
+			p.pieceY = p.movePath.pts[end].y
+			if p.movePath.hold <= 0 {
+				p.movePath.leg++
+				if p.movePath.n == 3 {
+					p.moveTween.Duration = 0.24
+				}
+				p.moveTween.Start()
+			}
+		} else {
+			leg := p.movePath.leg
+			from := p.movePath.pts[leg]
+			to := p.movePath.pts[leg+1]
+			prog := p.moveTween.Update(ctx.DT)
+			arc := -math.Sin(prog*math.Pi) * m.Cell * p.arcScale
+			p.pieceX = lerp(from.x, to.x, prog)
+			p.pieceY = lerp(from.y, to.y, prog) + arc
+			if p.moveTween.Done() {
+				if leg+1 < p.movePath.n-1 {
+					p.pieceX = to.x
+					p.pieceY = to.y
+					p.movePath.hold = 0.12
+					if p.pieceType == chess.Knight {
+						p.setTrailFromPath(trailMidLeg)
+					}
+					ctx.SFX.Play(sfx.SndStep)
+				} else {
+					p.land(ctx, m)
+				}
+			}
 		}
 	case stateCelebrating:
 		if p.reward.phase == 2 {
@@ -238,6 +306,15 @@ func (p *PlayScene) Update(ctx *Context) error {
 }
 
 const advanceHalf = 0.22
+
+// Knight trail timing: show the planned L as soon as the move starts, brighten
+// at the corner, then hold at full strength so a toddler can trace the shape.
+const (
+	trailFadeDur = 2.5
+	trailHoldDur = 1.4
+	trailPreview = 0.50 // ghost L while the first leg is running
+	trailMidLeg  = 0.85 // first leg done, corner locked in
+)
 
 func (p *PlayScene) handleTap(ctx *Context, x, y float64, m layout.Metrics) {
 	f, r, ok := m.HitCell(x, y)
@@ -305,16 +382,64 @@ func (p *PlayScene) oops(ctx *Context, sq chess.Square, m layout.Metrics) {
 }
 
 func (p *PlayScene) startMove(to chess.Square, m layout.Metrics) {
-	cr := m.CellRect(int(to.File), int(to.Rank))
-	p.fromX, p.fromY = p.pieceX, p.pieceY
-	p.toX, p.toY = cr.Center()
+	from := p.at
+	toCR := m.CellRect(int(to.File), int(to.Rank))
+
+	p.movePath.n = 2
+	p.movePath.leg = 0
+	p.movePath.hold = 0
+	p.movePath.pts[0].x, p.movePath.pts[0].y = p.pieceX, p.pieceY
+	p.movePath.pts[1].x, p.movePath.pts[1].y = toCR.Center()
+
+	p.arcScale = 0.28
+	p.moveTween.Duration = 0.42
+
+	if p.pieceType == chess.Knight {
+		df := int(to.File) - int(from.File)
+		if df < 0 {
+			df = -df
+		}
+		var corner chess.Square
+		if df == 2 {
+			corner = chess.Sq(int(to.File), int(from.Rank))
+		} else {
+			corner = chess.Sq(int(from.File), int(to.Rank))
+		}
+		cornerCR := m.CellRect(int(corner.File), int(corner.Rank))
+		p.movePath.pts[1].x, p.movePath.pts[1].y = cornerCR.Center()
+		p.movePath.pts[2].x, p.movePath.pts[2].y = toCR.Center()
+		p.movePath.n = 3
+		p.moveTween.Duration = 0.30
+		p.arcScale = 0.16
+		p.setTrailFromPath(trailPreview)
+	}
+
+	p.fromX, p.fromY = p.movePath.pts[0].x, p.movePath.pts[0].y
+	p.toX, p.toY = p.movePath.pts[1].x, p.movePath.pts[1].y
 	p.moveTo = to
 	p.moveTween.Start()
 	p.state = stateMoving
 }
 
 // land applies the finished move to the board and decides what happens next.
+func (p *PlayScene) setTrailFromPath(fade float64) {
+	p.trailN = p.movePath.n
+	for i := 0; i < p.trailN; i++ {
+		p.trailPts[i][0] = p.movePath.pts[i].x
+		p.trailPts[i][1] = p.movePath.pts[i].y
+	}
+	p.trailFade = fade
+	p.trailHold = 0
+}
+
 func (p *PlayScene) land(ctx *Context, m layout.Metrics) {
+	p.setTrailFromPath(1)
+	if p.movePath.n >= 3 {
+		p.trailHold = trailHoldDur
+	} else {
+		p.trailHold = trailHoldDur * 0.5
+	}
+
 	captured := !p.board.At(p.moveTo).IsEmpty()
 	p.board.Set(p.at, chess.Piece{})
 	p.board.Set(p.moveTo, p.cur.Piece)
@@ -497,6 +622,10 @@ func (p *PlayScene) Draw(dst *ebiten.Image, ctx *Context) {
 		render.DrawPiece(dst, p.board.At(sq), cr, 0, true)
 	}
 
+	if p.trailFade > 0 {
+		render.DrawMoveTrail(dst, m, p.trailPts[:p.trailN], p.trailFade)
+	}
+
 	p.drawPiece(dst, m)
 	render.DrawConfetti(dst, &p.confetti, p.sprites, m.Cell)
 
@@ -570,6 +699,10 @@ func (p *PlayScene) drawHeader(dst *ebiten.Image, ctx *Context, m layout.Metrics
 	b := backButtonRect(m)
 	render.DrawChunkyButton(dst, b.X, b.Y, b.W, b.H, render.ColorBack, render.ColorBackEdge, false)
 	render.DrawChevronLeft(dst, b.X, b.Y, b.W, b.H, b.H*0.12, render.ColorText)
+	if UpdateReady() {
+		dotR := b.H * 0.06
+		render.FillCircleSoft(dst, b.X+b.W-dotR*2.5, b.Y+dotR*2.5, dotR, render.ColorTextDim)
+	}
 
 	// Just the piece's name. The board says everything else, and anything more
 	// up here is one more thing pulling the eye away from the puzzle. The one
@@ -590,15 +723,16 @@ func (p *PlayScene) drawFooter(dst *ebiten.Image, ctx *Context, m layout.Metrics
 
 	// Empty slots are drawn too, so the tray reads as a row waiting to be
 	// filled rather than one lonely sticker in a wide bar.
-	for i := 0; i < traySlots; i++ {
+	slots := traySlots(m)
+	for i := 0; i < slots; i++ {
 		slot := trayEmojiPos(m, i)
 		render.FillCircleSoft(dst, slot.X, slot.Y, slot.W*0.30, render.ColorTraySlot)
 	}
 
 	stickers := p.game.Stickers()
 	show := stickers
-	if len(show) > traySlots {
-		show = show[len(show)-traySlots:]
+	if len(show) > slots {
+		show = show[len(show)-slots:]
 	}
 	base := len(stickers) - len(show)
 	for i, e := range show {
@@ -638,7 +772,15 @@ func (p *PlayScene) drawMilestone(dst *ebiten.Image, ctx *Context, m layout.Metr
 
 // --- footer geometry ---------------------------------------------------------
 
-const traySlots = 8
+const traySlotsPortrait = 8
+const traySlotsLandscape = 4
+
+func traySlots(m layout.Metrics) int {
+	if m.Portrait {
+		return traySlotsPortrait
+	}
+	return traySlotsLandscape
+}
 
 func trayRect(m layout.Metrics) layout.Rect {
 	h := math.Min(m.Footer.H*0.40, m.MinTap*0.95)
@@ -649,8 +791,9 @@ func trayRect(m layout.Metrics) layout.Rect {
 // centre; W is the size).
 func trayEmojiPos(m layout.Metrics, index int) layout.Rect {
 	tr := trayRect(m)
-	slot := index % traySlots
-	step := (tr.W - tr.H*0.4) / traySlots
+	slots := traySlots(m)
+	slot := index % slots
+	step := (tr.W - tr.H*0.4) / float64(slots)
 	size := math.Min(step*0.86, tr.H*0.70)
 	x := tr.X + tr.H*0.2 + step*float64(slot) + step/2
 	return layout.Rect{X: x, Y: tr.Y + tr.H/2, W: size, H: size}

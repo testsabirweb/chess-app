@@ -33,17 +33,50 @@ type homeRects struct {
 	cards                    [6]layout.Rect
 }
 
+func homeDp(m layout.Metrics, v float64) float64 {
+	return v * m.Scale
+}
+
+func scaleHomeBands(titleH, playH, labelH, trayH, gap *float64, cardsH *float64, safeH float64) {
+	gaps := 4 * *gap
+	total := *titleH + *playH + *labelH + *trayH + gaps
+	if *cardsH > 0 {
+		total += *cardsH
+	}
+	if total <= safeH+1e-9 {
+		return
+	}
+	// Scale every band and the gap by the same factor so nothing runs off-screen.
+	scale := safeH / total
+	*titleH *= scale
+	*playH *= scale
+	*labelH *= scale
+	*trayH *= scale
+	*gap *= scale
+	if *cardsH > 0 {
+		*cardsH *= scale
+	}
+}
+
 func homeLayout(m layout.Metrics) homeRects {
+	if !m.Portrait {
+		return homeLayoutLandscape(m)
+	}
+	return homeLayoutPortrait(m)
+}
+
+func homeLayoutPortrait(m layout.Metrics) homeRects {
 	s := m.Safe
 	gap := s.H * 0.018
-	titleH := s.H * 0.12
-	playH := math.Max(s.H*0.12, m.MinTap*1.25)
-	labelH := s.H * 0.055
-	trayH := math.Max(s.H*0.11, m.MinTap*0.9)
-	cardsH := s.H - titleH - playH - labelH - trayH - 4*gap
-	if cardsH < m.MinTap*2 {
-		cardsH = m.MinTap * 2
-	}
+
+	titleH := math.Min(s.H*0.12, homeDp(m, 140))
+	playH := math.Min(math.Max(s.H*0.12, m.MinTap*1.25), homeDp(m, 120))
+	labelH := math.Min(s.H*0.055, homeDp(m, 50))
+	trayH := math.Min(math.Max(s.H*0.11, m.MinTap*0.9), homeDp(m, 130))
+
+	gaps := 4 * gap
+	cardsH := s.H - titleH - playH - labelH - trayH - gaps
+	scaleHomeBands(&titleH, &playH, &labelH, &trayH, &gap, &cardsH, s.H)
 
 	var r homeRects
 	y := s.Y
@@ -59,9 +92,6 @@ func homeLayout(m layout.Metrics) homeRects {
 
 	colGap := s.W * 0.045
 	cw := (s.W - 2*colGap) / 3
-	// Keep the cards close to square; very tall cards look empty and make the
-	// piece art tiny relative to the button. Leftover height becomes even
-	// padding above and below the grid rather than one gaping row gap.
 	rowGap := cardsH * 0.10
 	ch := math.Min((cardsH-rowGap)/2, cw*1.32)
 	gridH := ch*2 + rowGap
@@ -77,6 +107,80 @@ func homeLayout(m layout.Metrics) homeRects {
 	y += cardsH + gap
 
 	r.tray = layout.Rect{X: s.X, Y: y, W: s.W, H: trayH}
+	return r
+}
+
+func homeLayoutLandscape(m layout.Metrics) homeRects {
+	s := m.Safe
+	gap := homeDp(m, 8)
+
+	r := homeRects{}
+	r.title = m.Board
+
+	panelX := m.Board.X + m.Board.W + gap
+	panelW := s.X + s.W - panelX
+	panelY := s.Y
+	panelH := s.H
+
+	vGap := panelH * 0.02
+	playH := math.Min(math.Max(panelH*0.18, m.MinTap*1.25), homeDp(m, 100))
+	labelH := math.Min(panelH*0.08, homeDp(m, 40))
+	trayH := math.Min(math.Max(panelH*0.15, m.MinTap*0.9), homeDp(m, 100))
+
+	content := playH + labelH + trayH + 2*vGap
+	cardsH := panelH - content
+	if content > panelH {
+		scale := panelH / content
+		playH *= scale
+		labelH *= scale
+		trayH *= scale
+		vGap *= scale
+		cardsH = panelH - playH - labelH - trayH - 2*vGap
+	}
+
+	y := panelY
+	pw := panelW * 0.82
+	r.play = layout.Rect{X: panelX + (panelW-pw)/2, Y: y, W: pw, H: playH}
+	y += playH + vGap
+
+	r.label = layout.Rect{X: panelX, Y: y, W: panelW, H: labelH}
+	y += labelH
+
+	colGap := panelW * 0.04
+	rowGap := cardsH * 0.08
+
+	// Prefer 2×3 when it fits; fall back to a single row of six.
+	cw3 := (panelW - 2*colGap) / 3
+	ch3 := math.Min(cw3*1.32, (cardsH-rowGap)/2)
+	gridH23 := ch3*2 + rowGap
+	useGrid := gridH23 <= cardsH+1e-9 && cw3 >= m.MinTap*0.55
+
+	if useGrid {
+		cw, ch := cw3, ch3
+		gridH := ch*2 + rowGap
+		gy := y + (cardsH-gridH)/2
+		for i := 0; i < 6; i++ {
+			col, row := i%3, i/3
+			r.cards[i] = layout.Rect{
+				X: panelX + float64(col)*(cw+colGap),
+				Y: gy + float64(row)*(ch+rowGap),
+				W: cw, H: ch,
+			}
+		}
+	} else {
+		cw := (panelW - 5*colGap) / 6
+		ch := math.Min(cw*1.32, cardsH)
+		gy := y + (cardsH-ch)/2
+		for i := 0; i < 6; i++ {
+			r.cards[i] = layout.Rect{
+				X: panelX + float64(i)*(cw+colGap),
+				Y: gy,
+				W: cw, H: ch,
+			}
+		}
+	}
+
+	r.tray = layout.Rect{X: panelX, Y: panelY + panelH - trayH, W: panelW, H: trayH}
 	return r
 }
 

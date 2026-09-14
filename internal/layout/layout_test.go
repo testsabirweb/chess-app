@@ -9,7 +9,7 @@ import (
 )
 
 type device struct {
-	name string
+	name        string
 	w, h, scale float64
 }
 
@@ -19,6 +19,24 @@ var devices = []device{
 	{"budget", 720, 1600, 2.0},
 	{"dev", 432, 960, 1.0},
 	{"landscape", 800, 400, 1.0},
+	{"small-old", 480, 800, 1.5},
+	{"tall-21x9", 1080, 2640, 3.0},
+	{"tablet-port", 1600, 2560, 2.0},
+	{"tablet-land", 2560, 1600, 2.0},
+	{"fold-inner", 1812, 2176, 2.4},
+	{"split-screen", 1080, 900, 2.75},
+	{"tiny", 400, 400, 1.0},
+}
+
+func rectsOverlap(a, b layout.Rect) bool {
+	return a.X < b.X+b.W && a.X+a.W > b.X && a.Y < b.Y+b.H && a.Y+a.H > b.Y
+}
+
+func boardInsideSafe(m layout.Metrics) bool {
+	return m.Board.X >= m.Safe.X-1e-9 &&
+		m.Board.Y >= m.Safe.Y-1e-9 &&
+		m.Board.X+m.Board.W <= m.Safe.X+m.Safe.W+1e-9 &&
+		m.Board.Y+m.Board.H <= m.Safe.Y+m.Safe.H+1e-9
 }
 
 func TestComputeDevices(t *testing.T) {
@@ -28,23 +46,38 @@ func TestComputeDevices(t *testing.T) {
 			if math.Abs(m.Board.W-m.Board.H) > 1e-9 {
 				t.Fatalf("board not square: %v", m.Board)
 			}
-			if m.Board.X < m.Safe.X || m.Board.Y < m.Safe.Y {
+			if !boardInsideSafe(m) {
 				t.Fatal("board outside safe area")
 			}
-			if m.Header.Y+m.Header.H > m.Board.Y+1e-9 {
-				t.Fatal("header overlaps board")
-			}
-			if m.Board.Y+m.Board.H > m.Footer.Y+1e-9 {
-				t.Fatal("board overlaps footer")
-			}
-			stack := m.Footer.Y + m.Footer.H - m.Header.Y
-			if stack > m.Safe.H+1e-9 {
-				t.Fatalf("stack taller than safe: %f > %f", stack, m.Safe.H)
+			if m.Portrait {
+				if m.Header.Y+m.Header.H > m.Board.Y+1e-9 {
+					t.Fatal("header overlaps board")
+				}
+				if m.Board.Y+m.Board.H > m.Footer.Y+1e-9 {
+					t.Fatal("board overlaps footer")
+				}
+				stack := m.Footer.Y + m.Footer.H - m.Header.Y
+				if stack > m.Safe.H+1e-9 {
+					t.Fatalf("stack taller than safe: %f > %f", stack, m.Safe.H)
+				}
+			} else {
+				if rectsOverlap(m.Header, m.Board) {
+					t.Fatal("header overlaps board")
+				}
+				if rectsOverlap(m.Footer, m.Board) {
+					t.Fatal("board overlaps footer")
+				}
+				if m.Header.X+m.Header.W > m.Safe.X+m.Safe.W+1e-9 {
+					t.Fatal("header extends outside safe")
+				}
+				if m.Footer.X+m.Footer.W > m.Safe.X+m.Safe.W+1e-9 {
+					t.Fatal("footer extends outside safe")
+				}
 			}
 			if math.Abs(m.Cell*5-m.Board.W) > 1e-9 {
 				t.Fatalf("cell*cols != board width")
 			}
-			if d.name != "landscape" && !m.TapOK() {
+			if d.name != "tiny" && !m.TapOK() {
 				t.Fatalf("tap target too small: cell=%f minTap=%f", m.Cell, m.MinTap)
 			}
 		})

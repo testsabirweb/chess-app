@@ -41,6 +41,11 @@ var (
 	ColorHintDot  = rgba(28, 110, 220, 0.95)
 	ColorHintRing = rgba(255, 255, 255, 0.80)
 
+	// Knight L-trail: light blue so it reads as "the path you took", distinct
+	// from the yellow picked-piece glow and the darker hint dots.
+	ColorTrail     = rgba(140, 205, 255, 0.95)
+	ColorTrailGlow = rgba(100, 180, 255, 0.65)
+
 	// The piece that is ready to be picked up. Unpicked is a quiet breathe;
 	// picked is a bright wash plus a white ring so it reads even before the
 	// move dots arrive.

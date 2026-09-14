@@ -2,6 +2,8 @@ package com.testsabirweb.chessapp;
 
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.View;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
@@ -14,11 +16,23 @@ import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 
 import com.testsabirweb.chessapp.mobile.EbitenView;
+import com.testsabirweb.chessapp.mobile.Mobile;
 
 import go.Seq;
 
 public class MainActivity extends AppCompatActivity {
     private EbitenView ebitenView;
+    private Updater updater;
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private final Runnable pollInstall = new Runnable() {
+        @Override
+        public void run() {
+            if (Mobile.consumeInstallRequest()) {
+                updater.installPending();
+            }
+            mainHandler.postDelayed(this, 200);
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -42,6 +56,9 @@ public class MainActivity extends AppCompatActivity {
         });
 
         hideSystemBars();
+
+        updater = new Updater(this);
+        mainHandler.post(pollInstall);
     }
 
     private void hideSystemBars() {
@@ -78,5 +95,11 @@ public class MainActivity extends AppCompatActivity {
             ebitenView.suspendGame();
         }
         super.onPause();
+    }
+
+    @Override
+    protected void onDestroy() {
+        mainHandler.removeCallbacks(pollInstall);
+        super.onDestroy();
     }
 }
