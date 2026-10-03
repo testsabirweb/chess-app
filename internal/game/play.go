@@ -59,8 +59,8 @@ type PlayScene struct {
 	board *chess.Board
 	at    chess.Square
 	// targets are the stars still to collect, in the order they were dealt.
-	// When capture is set they are black pawns standing on the board instead of
-	// stars, and landing on one takes it.
+	// When capture is set (worked out for each round) they are black pawns
+	// standing on the board instead of stars, and landing on one takes it.
 	targets []chess.Square
 	capture bool
 
@@ -148,32 +148,31 @@ const multiEasyRounds = 3
 
 // multiSource deals rounds from a generator that takes the target count and the
 // memory of recent squares, so a round does not look like the last ones.
-func multiSource(g *Game, deal func(k int, mem *challenge.Memory) challenge.Puzzle) func() challenge.Puzzle {
+func multiSource(g *Game, deal func(round, k int, mem *challenge.Memory) challenge.Puzzle) func() challenge.Puzzle {
 	round := 0
 	return func() challenge.Puzzle {
 		k := 3
 		if round < multiEasyRounds {
 			k = 2
 		}
+		p := deal(round, k, &g.recent)
 		round++
-		return deal(k, &g.recent)
+		return p
 	}
 }
 
-// NewTreasureScene is the collect-the-stars game: several stars on the board,
-// collected in any order.
+// NewTreasureScene is the collect game: several targets on the board, collected
+// in any order. Rounds alternate between stars (landing on an empty square) and
+// black pawns (capturing them), so the same game also teaches taking pieces:
+// the pawns block a rook's line until they are taken, and a pawn can only take
+// diagonally.
 func NewTreasureScene(g *Game, pt chess.PieceType) *PlayScene {
-	return newPlayScene(g, pt, multiSource(g, func(k int, mem *challenge.Memory) challenge.Puzzle {
+	return newPlayScene(g, pt, multiSource(g, func(round, k int, mem *challenge.Memory) challenge.Puzzle {
+		if round%2 == 1 {
+			return challenge.NewCatch(g.ctx.Rand, pt, chess.White, k, mem)
+		}
 		return challenge.NewTreasure(g.ctx.Rand, pt, chess.White, k, mem)
 	}))
-}
-
-// NewCatchScene is the catch-the-pawns game: black pawns stand still on the
-// board and the child takes them all, in any order.
-func NewCatchScene(g *Game, pt chess.PieceType) *PlayScene {
-	return newPlayScene(g, pt, multiSource(g, func(k int, mem *challenge.Memory) challenge.Puzzle {
-		return challenge.NewCatch(g.ctx.Rand, pt, chess.White, k, mem)
-	}), func(p *PlayScene) { p.capture = true })
 }
 
 // safeTeachRounds is how many rounds of Stay safe keep the red squares on show
@@ -228,6 +227,9 @@ func (p *PlayScene) newChallenge() {
 	p.board = p.cur.Board.Clone()
 	p.at = p.cur.From
 	p.targets = append(p.targets[:0], p.cur.Targets...)
+	// A round's targets are pawns to take if there are pieces standing on them,
+	// and stars to land on if the squares are empty.
+	p.capture = len(p.targets) > 0 && !p.board.At(p.targets[0]).IsEmpty()
 	p.solutions = p.board.MoveTargets(p.at)
 	p.steps = 0
 	p.optimal = p.cur.Optimal

@@ -56,7 +56,7 @@ func rectsTouch(a, b layout.Rect) bool {
 func TestHomeLayoutWithAllModes(t *testing.T) {
 	saved := activeModes
 	t.Cleanup(func() { activeModes = saved })
-	activeModes = []Mode{ModeStar, ModeWhich, ModeTreasure, ModeCatch, ModeSafe, ModePawnWars}
+	activeModes = []Mode{ModeStar, ModeWhich, ModeTreasure, ModeSafe, ModePawnWars}
 
 	for _, d := range homeDevices {
 		t.Run(d.name, func(t *testing.T) {

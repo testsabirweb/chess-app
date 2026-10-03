@@ -25,16 +25,14 @@ their own pieces start when tapped; games that need a piece are picked first (th
 button gets a gold frame) and started by a piece card. Tap the button again to
 go back to the star game.
 
-- **Collect the stars** (the gem button) — two stars at first, three after a few
-  rounds, collected in any order. Each pop is a small celebration; the last one
-  wins the sticker. Picking the quickest route through all of them earns the
-  "Perfect!" party. If the piece wanders so a star can't be reached any more, that
-  star hops somewhere it can. Pick it, then choose a piece card to start.
-- **Catch the pawns** (the black pawn button) — two or three black pawns stand
-  on the board and never move; capture them all, in any order. Taking one lets
-  lines open up for the next. The same quickest-route "Perfect!" applies, and a
-  pawn the piece can no longer capture is picked up and set down somewhere it
-  can. Pick it, then choose a piece card to start.
+- **Collect** (the gem button) — two targets at first, three after a few rounds,
+  collected in any order. Rounds alternate: stars to land on, then black pawns
+  to capture. The pawns stand still and block a rook's line until they are
+  taken; a pawn can only take diagonally. Each one collected is a small
+  celebration and the last wins the sticker. Picking the quickest route through
+  all of them earns the "Perfect!" party. If the piece wanders so a target can't
+  be reached any more, that target hops somewhere it can. Pick it, then choose a
+  piece card to start.
 - **Stay safe** (the shield button) — the star game with a black guard that never
   moves. The squares it attacks are tinted soft red, and the piece must not stop on
   one (it may pass through). Tapping a red square is refused: the guard lunges at

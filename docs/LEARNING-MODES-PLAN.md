@@ -2,8 +2,13 @@
 
 ## Status
 
-Phases 0, 2, 3, 4, 5 and 6 are implemented (shared round kit, mode row, "Which piece?", "Collect the
-stars", "Catch the pawns", "Stay safe"). Phase 7 (Pawn Wars) is still to do. Phase 4 added `challenge.Puzzle`, `Tour` and `NewTreasure`
+Phases 0, 2, 3, 4, 5 and 6 are implemented (shared round kit, mode row, "Which piece?", "Collect",
+"Stay safe"). Phase 7 (Pawn Wars) is still to do.
+
+**Phase 5 (Catch the pawns) was merged into phase 4**: it played almost exactly like collecting stars,
+so there is one "Collect" button whose rounds alternate between stars and black pawns (see
+`NewTreasureScene`; a round is a capture round when pieces stand on its targets). There is no
+`ModeCatch`. Phase 4 added `challenge.Puzzle`, `Tour` and `NewTreasure`
 (`internal/challenge/tour.go`); `PlayScene` now takes a `next func() challenge.Puzzle`, so Catch the
 pawns and Stay safe only need a new puzzle source plus their own rules.
 Catch the pawns is the same scene with `capture` set (the targets are real black pawns). Its pawn

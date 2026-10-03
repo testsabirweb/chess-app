@@ -33,8 +33,6 @@ func ModeByName(name string) (Mode, bool) {
 		return ModeWhich, true
 	case "treasure":
 		return ModeTreasure, true
-	case "catch":
-		return ModeCatch, true
 	case "safe":
 		return ModeSafe, true
 	case "pawnwars":

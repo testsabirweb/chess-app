@@ -9,8 +9,7 @@ type Mode uint8
 const (
 	ModeStar     Mode = iota // the original game: find the star
 	ModeWhich                // which piece can reach the star?
-	ModeTreasure             // collect several stars
-	ModeCatch                // capture the black pawns
+	ModeTreasure             // collect several targets: stars, then pawns to take, alternating
 	ModeSafe                 // reach the star without stopping where the guard attacks
 	ModePawnWars             // two players, one phone
 )
@@ -26,8 +25,7 @@ type modeInfo struct {
 var modeTable = [...]modeInfo{
 	ModeStar:     {"Find the star", "2b50", true},
 	ModeWhich:    {"Which piece?", "2753", false},
-	ModeTreasure: {"Collect the stars", "1f48e", true},
-	ModeCatch:    {"Catch the pawns", "265f", true},
+	ModeTreasure: {"Collect", "1f48e", true},
 	ModeSafe:     {"Stay safe", "1f6e1", true},
 	ModePawnWars: {"Pawn Wars", "1f91d", false},
 }
@@ -37,7 +35,7 @@ func (m Mode) info() modeInfo { return modeTable[m] }
 // activeModes are the modes that can be played, in order. A mode is added here
 // in the same change that makes it playable, so there is never a button that
 // does nothing.
-var activeModes = []Mode{ModeStar, ModeWhich, ModeTreasure, ModeCatch, ModeSafe}
+var activeModes = []Mode{ModeStar, ModeWhich, ModeTreasure, ModeSafe}
 
 // rowModes are the modes that get a button on the home screen. The star game
 // has none: it is what the piece cards already play, so a button for it would
@@ -67,8 +65,6 @@ func newModeScene(g *Game, mode Mode, pt chess.PieceType) Scene {
 		return NewWhichScene(g)
 	case ModeTreasure:
 		return NewTreasureScene(g, pt)
-	case ModeCatch:
-		return NewCatchScene(g, pt)
 	case ModeSafe:
 		return NewSafeScene(g, pt)
 	default:

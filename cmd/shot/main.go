@@ -211,7 +211,7 @@ func pieceByName(n string) chess.PieceType {
 func main() {
 	out := flag.String("out", "shots", "directory for PNGs")
 	scene := flag.String("scene", "home", "home or play")
-	mode := flag.String("mode", "star", "game mode for the play scene: star, which, treasure, catch, safe, pawnwars")
+	mode := flag.String("mode", "star", "game mode for the play scene: star, which, treasure, safe, pawnwars")
 	piece := flag.String("piece", "rook", "piece for the play scene")
 	skip := flag.Int("skip", 0, "skip this many generated puzzles first")
 	seed := flag.Int("stickers", 0, "pre-seed this many collected stickers")
@@ -261,7 +261,7 @@ func main() {
 				step{frame: 120 + 45*i + 35, shot: fmt.Sprintf("%02d-hop", i+4)},
 			)
 		}
-	} else if *scene == "play" && (*mode == "treasure" || *mode == "catch") {
+	} else if *scene == "play" && *mode == "treasure" {
 		m, _ := game.ModeByName(*mode)
 		g = game.NewInMode(m, pieceByName(*piece))
 		g.SetHintDelay(*hintDelay)

@@ -182,7 +182,6 @@ func newFixedCatch(g *Game) *PlayScene {
 	g.ctx.M = layout.Compute(1080, 2400, 2.75, layout.Insets{}, 5, 5)
 	g.ctx.DT = 1.0 / 60
 	ps := newPlayScene(g, chess.Rook, func() challenge.Puzzle { return fixedCatch() })
-	ps.capture = true
 	return ps
 }
 
@@ -227,8 +226,6 @@ func TestCaughtPawnsStayReachable(t *testing.T) {
 		b.Set(chess.Sq(3, 2), enemy)
 		return challenge.Puzzle{Board: b, From: chess.Sq(2, 1), Piece: piece, Targets: []chess.Square{chess.Sq(3, 2)}, Optimal: 1}
 	})
-	p.capture = true
-
 	// The white pawn has climbed past the black one, which it can never take now.
 	p.board.Set(chess.Sq(2, 1), chess.Piece{})
 	p.at = chess.Sq(2, 3)
@@ -272,7 +269,6 @@ func settle(t *testing.T, g *Game, p *PlayScene) {
 func TestMultiTargetRandomPlayStaysConsistent(t *testing.T) {
 	types := []chess.PieceType{chess.Pawn, chess.Knight, chess.Bishop, chess.Rook, chess.Queen, chess.King}
 	for _, mode := range []string{"treasure", "catch", "safe"} {
-		capture := mode == "catch"
 		for _, pt := range types {
 			g := testGame()
 			g.ctx.M = layout.Compute(1080, 2400, 2.75, layout.Insets{}, 5, 5)
@@ -280,7 +276,11 @@ func TestMultiTargetRandomPlayStaysConsistent(t *testing.T) {
 			var p *PlayScene
 			switch mode {
 			case "catch":
-				p = NewCatchScene(g, pt)
+				// Rounds of nothing but pawns, which the alternating game only
+				// reaches every other round.
+				p = newPlayScene(g, pt, multiSource(g, func(_, k int, mem *challenge.Memory) challenge.Puzzle {
+					return challenge.NewCatch(g.ctx.Rand, pt, chess.White, k, mem)
+				}))
 			case "safe":
 				p = NewSafeScene(g, pt)
 			default:
@@ -295,7 +295,7 @@ func TestMultiTargetRandomPlayStaysConsistent(t *testing.T) {
 				// Invariants.
 				pieces := len(p.board.Occupied())
 				want := 1 // the player's piece
-				if capture {
+				if p.capture {
 					want += len(p.targets)
 				}
 				if p.safe {
@@ -311,7 +311,7 @@ func TestMultiTargetRandomPlayStaysConsistent(t *testing.T) {
 					t.Fatalf("mode=%v %v move %d: %d pieces on the board, want %d", mode, pt, move, pieces, want)
 				}
 				for _, tg := range p.targets {
-					if capture {
+					if p.capture {
 						if got := p.board.At(tg); got.Type != chess.Pawn || got.Color != chess.Black {
 							t.Fatalf("mode=%v %v: target %v holds no black pawn", mode, pt, tg)
 						}
@@ -404,5 +404,28 @@ func TestSafeWarningFadesWithTheTeachingRounds(t *testing.T) {
 	p.hintT = 0
 	if got := p.dangerStrength(); got != 1 {
 		t.Fatalf("with the dots showing, strength = %v, want 1", got)
+	}
+}
+
+// The collect game alternates stars and pawns: a round is stars when the target
+// squares are empty and pawns when pieces stand on them.
+func TestCollectAlternatesStarsAndPawns(t *testing.T) {
+	g := testGame()
+	g.ctx.M = layout.Compute(1080, 2400, 2.75, layout.Insets{}, 5, 5)
+	p := NewTreasureScene(g, chess.Rook)
+	var kinds []bool
+	for round := 0; round < 6; round++ {
+		kinds = append(kinds, p.capture)
+		for _, tg := range p.targets {
+			if p.board.At(tg).IsEmpty() == p.capture {
+				t.Fatalf("round %d: capture=%v but target %v holds %v", round, p.capture, tg, p.board.At(tg))
+			}
+		}
+		p.newChallenge()
+	}
+	for i, c := range kinds {
+		if want := i%2 == 1; c != want {
+			t.Fatalf("round %d: capture=%v, want %v (stars first, then pawns, alternating): %v", i, c, want, kinds)
+		}
 	}
 }

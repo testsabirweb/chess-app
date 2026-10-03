@@ -34,7 +34,6 @@ var uiEmoji = map[string]bool{
 	// would read as a second copy of the button.
 	"2753":  true, // question mark: Which piece?
 	"1f48e": true, // gem: Collect the stars
-	"265f":  true, // pawn: Catch the pawns
 	"1f6e1": true, // shield: Stay safe
 	"1f91d": true, // handshake: Pawn Wars
 }

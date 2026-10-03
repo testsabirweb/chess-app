@@ -13,7 +13,6 @@ shots:
 	go run ./cmd/shot -out shots/rook       -scene play -piece rook -stickers 4 -w 393 -h 873 -scale 2.75
 	go run ./cmd/shot -out shots/which      -scene play -mode which -stickers 4 -w 393 -h 873 -scale 2.75
 	go run ./cmd/shot -out shots/treasure   -scene play -mode treasure -piece queen -stickers 4 -w 393 -h 873 -scale 2.75
-	go run ./cmd/shot -out shots/catch      -scene play -mode catch -piece rook -stickers 4 -w 393 -h 873 -scale 2.75
 	go run ./cmd/shot -out shots/safe       -scene play -mode safe -piece rook -stickers 4 -w 393 -h 873 -scale 2.75
 	go run ./cmd/shot -out shots/tablet     -scene play -piece rook -stickers 4 -w 800 -h 1280 -scale 2.0
 	go run ./cmd/shot -out shots/landscape  -scene play -piece rook -stickers 4 -w 1280 -h 800 -scale 2.0
