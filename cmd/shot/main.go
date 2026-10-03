@@ -149,6 +149,13 @@ func tapWrongPiece(g *game.Game) {
 	}
 }
 
+// tapStarSquare taps the star, which is what moves the picked-up piece.
+func tapStarSquare(g *game.Game) {
+	if info, ok := g.WhichInfo(); ok {
+		g.TapSquare(int(info.Target.File), int(info.Target.Rank))
+	}
+}
+
 // tapRightPiece taps the piece that can reach the star.
 func tapRightPiece(g *game.Game) {
 	if info, ok := g.WhichInfo(); ok {
@@ -204,9 +211,11 @@ func main() {
 			{frame: 46, shot: "02-wrong-shows-moves"},
 			{frame: 135, shot: "03-wrong-faded"},
 			{frame: 140, do: tapRightPiece},
-			{frame: 150, shot: "04-hopping"},
-			{frame: 176, shot: "05-reward-pop"},
-			{frame: 200, shot: "06-reward-fly"},
+			{frame: 150, shot: "04-picked-up"},
+			{frame: 160, do: tapStarSquare},
+			{frame: 170, shot: "05-hopping"},
+			{frame: 200, shot: "06-reward-pop"},
+			{frame: 225, shot: "07-reward-fly"},
 		}
 	} else if *scene == "play" {
 		g = game.NewInPlay(pieceByName(*piece))

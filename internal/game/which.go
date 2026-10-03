@@ -58,6 +58,10 @@ type WhichScene struct {
 	showT   float64
 	hintBuf []render.Hint
 
+	// holding is true once the right piece has been picked up. It waits there
+	// until the child taps the star: the piece never moves on its own.
+	holding bool
+
 	hopTween   anim.Tween
 	hopFrom    layout.Rect // the answer's square when it set off
 	hopX, hopY float64
@@ -108,6 +112,7 @@ func (s *WhichScene) deal(bank *sfx.Bank) {
 	s.state = whichIdle
 	s.showing = -1
 	s.showT = 0
+	s.holding = false
 	s.won = false
 	if bank != nil {
 		bank.Say(sfx.ClipWhich)
@@ -170,12 +175,28 @@ func (s *WhichScene) handleTap(ctx *Context, x, y float64, m layout.Metrics) {
 	}
 	sq := chess.Sq(f, r)
 
+	if s.holding {
+		switch {
+		case sq == s.cur.Target:
+			s.startHop(ctx, m)
+			return
+		case sq == s.cur.Pieces[s.answer]:
+			// Tapping the piece again puts it back down.
+			ctx.SFX.Play(sfx.SndButton)
+			s.holding = false
+			return
+		}
+		// Anything else: put the piece down and treat the tap as a fresh pick,
+		// below, so changing his mind is one tap.
+		s.holding = false
+	}
+
 	for i, ps := range s.cur.Pieces {
 		if ps != sq || s.dim[i] {
 			continue
 		}
 		if i == s.answer {
-			s.startHop(ctx, m)
+			s.pickUp(ctx)
 		} else {
 			s.wrong(ctx, i, m)
 		}
@@ -212,6 +233,11 @@ func (s *WhichScene) wrong(ctx *Context, i int, m layout.Metrics) {
 	s.wobbleT = 0.25
 	s.wobbleAmp = m.Cell * 0.025
 
+	s.buildHints(i)
+}
+
+// buildHints fills hintBuf with where candidate i can move.
+func (s *WhichScene) buildHints(i int) {
 	s.hintBuf = s.hintBuf[:0]
 	for _, to := range s.cur.Board.MoveTargets(s.cur.Pieces[i]) {
 		s.hintBuf = append(s.hintBuf, render.Hint{
@@ -220,6 +246,20 @@ func (s *WhichScene) wrong(ctx *Context, i int, m layout.Metrics) {
 			Target:  to == s.cur.Target,
 		})
 	}
+}
+
+// pickUp lifts the right piece and shows its moves, star included, then waits.
+// The moves show at once: he has already answered the question, and the next
+// step - tapping the star himself - is the part that is his to do.
+func (s *WhichScene) pickUp(ctx *Context) {
+	ctx.SFX.Play(sfx.SndButton)
+	ctx.SFX.Say(pieceClip(s.cur.Board.At(s.cur.Answer).Type))
+	if s.showing >= 0 {
+		s.dim[s.showing] = true
+		s.showing = -1
+	}
+	s.holding = true
+	s.buildHints(s.answer)
 }
 
 func (s *WhichScene) oops(ctx *Context, sq chess.Square, m layout.Metrics) {
@@ -235,10 +275,7 @@ func (s *WhichScene) oops(ctx *Context, sq chess.Square, m layout.Metrics) {
 
 func (s *WhichScene) startHop(ctx *Context, m layout.Metrics) {
 	ctx.SFX.Play(sfx.SndButton)
-	if s.showing >= 0 {
-		s.dim[s.showing] = true
-		s.showing = -1
-	}
+	s.holding = false
 	from := s.cur.Pieces[s.answer]
 	s.hopFrom = m.CellRect(int(from.File), int(from.Rank))
 	s.hopX, s.hopY = s.hopFrom.Center()
@@ -285,10 +322,13 @@ func (s *WhichScene) Draw(dst *ebiten.Image, ctx *Context) {
 	render.DrawBoard(dst, m)
 
 	idle := s.state == whichIdle && !s.kit.busy()
-	if s.showing >= 0 {
+	if s.holding && idle {
+		render.DrawMoveHints(dst, m, s.hintBuf, 1)
+		render.DrawPickableRing(dst, m, s.cur.Pieces[s.answer], s.starScale, true, ctx.T)
+	} else if s.showing >= 0 {
 		render.DrawMoveHints(dst, m, s.hintBuf, s.hintFade())
 	}
-	if idle {
+	if idle && !s.holding {
 		// Every piece still in the running breathes, saying "pick me".
 		for i, sq := range s.cur.Pieces {
 			if !s.dim[i] {
@@ -334,10 +374,14 @@ func (s *WhichScene) drawPiece(dst *ebiten.Image, m layout.Metrics, i int, sq ch
 	if s.dim[i] {
 		alpha = whichDimAlpha
 	}
-	render.DrawPieceAlpha(dst, p, cr, 0, true, alpha)
+	lift := 0.0
+	if s.holding && i == s.answer {
+		lift = m.Cell * 0.12
+	}
+	render.DrawPieceAlpha(dst, p, cr, lift, true, alpha)
 	// The dark-square bishop keeps its scarf, as in the star game.
 	if p.Type == chess.Bishop && render.DarkSquare(sq) && !s.dim[i] {
-		render.DrawBishopScarf(dst, cr, 0)
+		render.DrawBishopScarf(dst, cr, lift)
 	}
 }
 

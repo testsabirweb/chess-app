@@ -24,7 +24,8 @@ Tapping one picks the game the piece cards will start (it gets a gold frame);
 games that deal their own pieces start straight away.
 
 - **Which piece?** — two or three pieces and a star. Exactly one piece can reach
-  the star in a single move. Tap it and it hops over. A wrong pick shows what
+  the star in a single move. Tap it to pick it up, then tap the star to move it
+  there yourself. A wrong pick shows what
   that piece *can* do, says its name, then fades out of the running, so the
   next guess is easier. Getting it right first time earns the "Perfect!" party.
   The knight is never dealt in this game.
