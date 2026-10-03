@@ -217,8 +217,9 @@ func main() {
 			{frame: 200, shot: "06-reward-pop"},
 			{frame: 225, shot: "07-reward-fly"},
 		}
-	} else if *scene == "play" && *mode == "treasure" {
-		g = game.NewInMode(game.ModeTreasure, pieceByName(*piece))
+	} else if *scene == "play" && (*mode == "treasure" || *mode == "catch") {
+		m, _ := game.ModeByName(*mode)
+		g = game.NewInMode(m, pieceByName(*piece))
 		g.SetHintDelay(*hintDelay)
 		g.SeedStickers(*seed)
 		// Walk towards whichever star is first in line, hop after hop, with a

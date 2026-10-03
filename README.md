@@ -30,6 +30,11 @@ go back to the star game.
   wins the sticker. Picking the quickest route through all of them earns the
   "Perfect!" party. If the piece wanders so a star can't be reached any more, that
   star hops somewhere it can. Pick it, then choose a piece card to start.
+- **Catch the pawns** (the black pawn button) — two or three black pawns stand
+  on the board and never move; capture them all, in any order. Taking one lets
+  lines open up for the next. The same quickest-route "Perfect!" applies, and a
+  pawn the piece can no longer capture is picked up and set down somewhere it
+  can. Pick it, then choose a piece card to start.
 - **Which piece?** — two or three pieces and a star. Exactly one piece can reach
   the star in a single move. Tap it to pick it up, then tap the star to move it
   there yourself. A wrong pick shows what

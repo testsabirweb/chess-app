@@ -141,3 +141,72 @@ func TestTreasureDeterministicForSeed(t *testing.T) {
 		}
 	}
 }
+
+func checkCatch(t *testing.T, p Puzzle, k int, pt chess.PieceType) {
+	t.Helper()
+	if len(p.Targets) < 1 || len(p.Targets) > k {
+		t.Fatalf("%v: %d pawns, want 1..%d", pt, len(p.Targets), k)
+	}
+	if p.Board.At(p.From) != p.Piece {
+		t.Fatalf("piece not on its start square")
+	}
+	seen := map[chess.Square]bool{}
+	for _, s := range p.Targets {
+		got := p.Board.At(s)
+		if s == p.From || seen[s] || got.Type != chess.Pawn || got.Color == p.Piece.Color {
+			t.Fatalf("%v: target %v does not hold an enemy pawn", pt, s)
+		}
+		if !pawnHome(int(s.Rank)) {
+			t.Fatalf("%v: pawn on rank %d", pt, s.Rank)
+		}
+		seen[s] = true
+	}
+	// Nothing else on the board but the piece and its targets.
+	if got := len(p.Board.Occupied()); got != len(p.Targets)+1 {
+		t.Fatalf("%v: %d pieces on the board, want %d", pt, got, len(p.Targets)+1)
+	}
+	total, ok := Tour(p.Board, p.From, p.Targets, catchLeg)
+	if !ok || total != p.Optimal || total > catchMaxTour {
+		t.Fatalf("%v: Optimal=%d, Tour=%d,%v", pt, p.Optimal, total, ok)
+	}
+}
+
+func TestCatchIsAlwaysSolvable(t *testing.T) {
+	for seed := uint64(0); seed < 60; seed++ {
+		rng := rand.New(rand.NewPCG(seed, 13))
+		for _, pt := range allTypes {
+			for k := 2; k <= 3; k++ {
+				checkCatch(t, NewCatch(rng, pt, chess.White, k, chess.Sq(0, 0)), k, pt)
+			}
+		}
+	}
+}
+
+func TestCatchUsuallyHasAllThePawns(t *testing.T) {
+	rng := rand.New(rand.NewPCG(4, 5))
+	for _, pt := range []chess.PieceType{chess.Knight, chess.Bishop, chess.Rook, chess.Queen, chess.King} {
+		full := 0
+		for i := 0; i < 50; i++ {
+			if len(NewCatch(rng, pt, chess.White, 3, chess.Sq(0, 0)).Targets) == 3 {
+				full++
+			}
+		}
+		if full < 25 {
+			t.Fatalf("%v: only %d/50 rounds had 3 pawns", pt, full)
+		}
+	}
+}
+
+func TestCatchDeterministicForSeed(t *testing.T) {
+	a := NewCatch(rand.New(rand.NewPCG(8, 8)), chess.Rook, chess.White, 3, chess.Sq(0, 0))
+	b := NewCatch(rand.New(rand.NewPCG(8, 8)), chess.Rook, chess.White, 3, chess.Sq(0, 0))
+	if a.From != b.From || a.Optimal != b.Optimal || len(a.Targets) != len(b.Targets) {
+		t.Fatal("same seed, different puzzle")
+	}
+}
+
+func TestCatchFallbackIsSolvableForEveryPiece(t *testing.T) {
+	for _, pt := range allTypes {
+		checkCatch(t, fallbackCatch(pt, chess.White), 1, pt)
+	}
+}

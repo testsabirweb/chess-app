@@ -27,7 +27,7 @@ var modeTable = [...]modeInfo{
 	ModeStar:     {"Find the star", "2b50", true},
 	ModeWhich:    {"Which piece?", "2753", false},
 	ModeTreasure: {"Collect the stars", "1f48e", true},
-	ModeCatch:    {"Catch the pawns", "1f36a", true},
+	ModeCatch:    {"Catch the pawns", "265f", true},
 	ModeSafe:     {"Stay safe", "1f6e1", true},
 	ModePawnWars: {"Pawn Wars", "1f91d", false},
 }
@@ -37,7 +37,7 @@ func (m Mode) info() modeInfo { return modeTable[m] }
 // activeModes are the modes that can be played, in order. A mode is added here
 // in the same change that makes it playable, so there is never a button that
 // does nothing.
-var activeModes = []Mode{ModeStar, ModeWhich, ModeTreasure}
+var activeModes = []Mode{ModeStar, ModeWhich, ModeTreasure, ModeCatch}
 
 // rowModes are the modes that get a button on the home screen. The star game
 // has none: it is what the piece cards already play, so a button for it would
@@ -67,6 +67,8 @@ func newModeScene(g *Game, mode Mode, pt chess.PieceType) Scene {
 		return NewWhichScene(g)
 	case ModeTreasure:
 		return NewTreasureScene(g, pt)
+	case ModeCatch:
+		return NewCatchScene(g, pt)
 	default:
 		return NewPlayScene(g, pt)
 	}

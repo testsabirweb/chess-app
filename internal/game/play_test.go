@@ -163,3 +163,156 @@ func TestStarsStayReachable(t *testing.T) {
 		}
 	}
 }
+
+// fixedCatch is a rook with two black pawns to take: (0,0) x (0,2) x (4,2).
+func fixedCatch() challenge.Puzzle {
+	b := chess.NewBoard(5, 5)
+	piece := chess.Piece{Type: chess.Rook, Color: chess.White}
+	enemy := chess.Piece{Type: chess.Pawn, Color: chess.Black}
+	b.Set(chess.Sq(0, 0), piece)
+	b.Set(chess.Sq(0, 2), enemy)
+	b.Set(chess.Sq(4, 2), enemy)
+	return challenge.Puzzle{
+		Board: b, From: chess.Sq(0, 0), Piece: piece,
+		Targets: []chess.Square{chess.Sq(0, 2), chess.Sq(4, 2)}, Optimal: 2,
+	}
+}
+
+func newFixedCatch(g *Game) *PlayScene {
+	g.ctx.M = layout.Compute(1080, 2400, 2.75, layout.Insets{}, 5, 5)
+	g.ctx.DT = 1.0 / 60
+	ps := newPlayScene(g, chess.Rook, func() challenge.Puzzle { return fixedCatch() })
+	ps.capture = true
+	return ps
+}
+
+// Landing on a pawn takes it off the board; the round is won when the last one
+// is gone, and only then.
+func TestCatchRemovesEachPawn(t *testing.T) {
+	g := testGame()
+	p := newFixedCatch(g)
+
+	hop(t, g, p, chess.Sq(0, 2), 40)
+	if !p.board.At(chess.Sq(0, 2)).IsEmpty() && p.board.At(chess.Sq(0, 2)).Color == chess.Black {
+		t.Fatal("the captured pawn is still on the board")
+	}
+	if len(p.targets) != 1 || len(g.Stickers()) != 0 {
+		t.Fatalf("after one pawn: %d left, %d stickers", len(p.targets), len(g.Stickers()))
+	}
+
+	hop(t, g, p, chess.Sq(4, 2), 30)
+	if !p.kit.celebrating() || !p.kit.perfect {
+		t.Fatalf("celebrating=%v perfect=%v, want a perfect win in 2 moves", p.kit.celebrating(), p.kit.perfect)
+	}
+	for i := 0; i < 600; i++ {
+		if err := p.Update(&g.ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := len(g.Stickers()); got != 1 {
+		t.Fatalf("got %d stickers, want exactly 1", got)
+	}
+}
+
+// A pawn the piece can no longer reach is picked up and set down somewhere it
+// can: the target list and the board must agree.
+func TestCaughtPawnsStayReachable(t *testing.T) {
+	g := testGame()
+	g.ctx.M = layout.Compute(1080, 2400, 2.75, layout.Insets{}, 5, 5)
+	piece := chess.Piece{Type: chess.Pawn, Color: chess.White}
+	enemy := chess.Piece{Type: chess.Pawn, Color: chess.Black}
+	p := newPlayScene(g, chess.Pawn, func() challenge.Puzzle {
+		b := chess.NewBoard(5, 5)
+		b.Set(chess.Sq(2, 1), piece)
+		b.Set(chess.Sq(3, 2), enemy)
+		return challenge.Puzzle{Board: b, From: chess.Sq(2, 1), Piece: piece, Targets: []chess.Square{chess.Sq(3, 2)}, Optimal: 1}
+	})
+	p.capture = true
+
+	// The white pawn has climbed past the black one, which it can never take now.
+	p.board.Set(chess.Sq(2, 1), chess.Piece{})
+	p.at = chess.Sq(2, 3)
+	p.board.Set(p.at, piece)
+	p.keepStarsReachable(&g.ctx)
+
+	if len(p.targets) != 1 {
+		t.Fatalf("%d targets, want 1", len(p.targets))
+	}
+	to := p.targets[0]
+	if got := p.board.At(to); got.Type != chess.Pawn || got.Color != chess.Black {
+		t.Fatalf("no black pawn on the new target %v", to)
+	}
+	if !p.board.At(chess.Sq(3, 2)).IsEmpty() {
+		t.Fatal("the old pawn square was not cleared")
+	}
+	if !challenge.CanReach(p.board, p.at, to, maxJourney+2) {
+		t.Fatalf("pawn at %v is still out of reach", to)
+	}
+	if got := len(p.board.Occupied()); got != 2 {
+		t.Fatalf("%d pieces on the board, want 2", got)
+	}
+}
+
+// settle runs the scene until nothing is moving and no celebration is on.
+func settle(t *testing.T, g *Game, p *PlayScene) {
+	t.Helper()
+	for i := 0; i < 1500 && (p.state != stateIdle || p.kit.busy()); i++ {
+		if err := p.Update(&g.ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if p.state != stateIdle || p.kit.busy() {
+		t.Fatal("scene never settled")
+	}
+}
+
+// Random play in the several-target games, with every piece: whatever the
+// child does, the board and the target list stay consistent and every target
+// can still be reached.
+func TestMultiTargetRandomPlayStaysConsistent(t *testing.T) {
+	types := []chess.PieceType{chess.Pawn, chess.Knight, chess.Bishop, chess.Rook, chess.Queen, chess.King}
+	for _, capture := range []bool{false, true} {
+		for _, pt := range types {
+			g := testGame()
+			g.ctx.M = layout.Compute(1080, 2400, 2.75, layout.Insets{}, 5, 5)
+			g.ctx.DT = 1.0 / 60
+			var p *PlayScene
+			if capture {
+				p = NewCatchScene(g, pt)
+			} else {
+				p = NewTreasureScene(g, pt)
+			}
+			rng := rand.New(rand.NewPCG(uint64(pt), 99))
+			for move := 0; move < 120; move++ {
+				settle(t, g, p)
+				if len(p.solutions) == 0 {
+					continue
+				}
+				// Invariants.
+				pieces := len(p.board.Occupied())
+				want := 1 // the player's piece
+				if capture {
+					want += len(p.targets)
+				}
+				if pieces != want {
+					t.Fatalf("capture=%v %v move %d: %d pieces on the board, want %d", capture, pt, move, pieces, want)
+				}
+				for _, tg := range p.targets {
+					if capture {
+						if got := p.board.At(tg); got.Type != chess.Pawn || got.Color != chess.Black {
+							t.Fatalf("capture=%v %v: target %v holds no black pawn", capture, pt, tg)
+						}
+					} else if !p.board.At(tg).IsEmpty() {
+						t.Fatalf("capture=%v %v: star %v is under a piece", capture, pt, tg)
+					}
+					if !challenge.CanReach(p.board, p.at, tg, maxJourney+2) {
+						t.Fatalf("capture=%v %v move %d: target %v unreachable from %v", capture, pt, move, tg, p.at)
+					}
+				}
+				to := p.solutions[rng.IntN(len(p.solutions))]
+				p.pieceSelected = true
+				p.startMove(to, g.ctx.M)
+			}
+		}
+	}
+}

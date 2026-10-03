@@ -59,7 +59,10 @@ type PlayScene struct {
 	board *chess.Board
 	at    chess.Square
 	// targets are the stars still to collect, in the order they were dealt.
+	// When capture is set they are black pawns standing on the board instead of
+	// stars, and landing on one takes it.
 	targets   []chess.Square
+	capture   bool
 	solutions []chess.Square
 	steps     int
 
@@ -127,25 +130,43 @@ func NewPlayScene(g *Game, pt chess.PieceType) *PlayScene {
 	})
 }
 
-// treasureEasyRounds is how many rounds of the treasure game have two stars
-// before it goes to three.
-const treasureEasyRounds = 3
+// multiEasyRounds is how many rounds of the games with several targets have
+// two before they go to three.
+const multiEasyRounds = 3
+
+// multiSource deals rounds from a generator that takes the target count and the
+// previous round's start square, so the piece does not begin where it just was.
+func multiSource(g *Game, deal func(k int, avoid chess.Square) challenge.Puzzle) func() challenge.Puzzle {
+	round := 0
+	last := chess.Square{File: 255, Rank: 255} // matches no square
+	return func() challenge.Puzzle {
+		k := 3
+		if round < multiEasyRounds {
+			k = 2
+		}
+		round++
+		p := deal(k, last)
+		last = p.From
+		return p
+	}
+}
 
 // NewTreasureScene is the collect-the-stars game: several stars on the board,
 // collected in any order.
 func NewTreasureScene(g *Game, pt chess.PieceType) *PlayScene {
-	round := 0
-	last := chess.Square{File: 255, Rank: 255} // matches no square
-	return newPlayScene(g, pt, func() challenge.Puzzle {
-		k := 3
-		if round < treasureEasyRounds {
-			k = 2
-		}
-		round++
-		p := challenge.NewTreasure(g.ctx.Rand, pt, chess.White, k, last)
-		last = p.From
-		return p
-	})
+	return newPlayScene(g, pt, multiSource(g, func(k int, avoid chess.Square) challenge.Puzzle {
+		return challenge.NewTreasure(g.ctx.Rand, pt, chess.White, k, avoid)
+	}))
+}
+
+// NewCatchScene is the catch-the-pawns game: black pawns stand still on the
+// board and the child takes them all, in any order.
+func NewCatchScene(g *Game, pt chess.PieceType) *PlayScene {
+	ps := newPlayScene(g, pt, multiSource(g, func(k int, avoid chess.Square) challenge.Puzzle {
+		return challenge.NewCatch(g.ctx.Rand, pt, chess.White, k, avoid)
+	}))
+	ps.capture = true
+	return ps
 }
 
 func newPlayScene(g *Game, pt chess.PieceType, next func() challenge.Puzzle) *PlayScene {
@@ -464,17 +485,22 @@ func (p *PlayScene) keepStarsReachable(ctx *Context) {
 	}
 }
 
-// relocateStar moves star i to a square the piece can reach, preferring one a
+// relocateStar moves target i to a square the piece can reach, preferring one a
 // couple of moves away and never one that is already taken. It reports false
 // when the piece has nowhere to go.
 func (p *PlayScene) relocateStar(ctx *Context, i int) bool {
-	steps := challenge.Reach(p.board, p.at, maxJourney)
 	var open, far []challenge.Step
-	for _, s := range steps {
-		if !p.board.At(s.Square).IsEmpty() || indexOfSquare(p.targets, s.Square) >= 0 {
-			continue
+	if p.capture {
+		open = p.takeableSquares(i)
+	} else {
+		for _, s := range challenge.Reach(p.board, p.at, maxJourney) {
+			if !p.board.At(s.Square).IsEmpty() || indexOfSquare(p.targets, s.Square) >= 0 {
+				continue
+			}
+			open = append(open, s)
 		}
-		open = append(open, s)
+	}
+	for _, s := range open {
 		if s.Moves >= 2 {
 			far = append(far, s)
 		}
@@ -486,8 +512,51 @@ func (p *PlayScene) relocateStar(ctx *Context, i int) bool {
 	if len(pool) == 0 {
 		return false
 	}
-	p.targets[i] = pool[ctx.Rand.IntN(len(pool))].Square
+	to := pool[ctx.Rand.IntN(len(pool))].Square
+	if p.capture {
+		// The target is a real piece: lift the pawn and set it down again.
+		enemy := p.board.At(p.targets[i])
+		p.board.Set(p.targets[i], chess.Piece{})
+		p.board.Set(to, enemy)
+	}
+	p.targets[i] = to
 	return true
+}
+
+// takeableSquares lists the empty squares where pawn i could be put down and
+// still be captured by the piece. It cannot just use Reach: a white pawn only
+// captures onto a square that is occupied, so the squares it can take on are
+// not squares it can "reach" while they are empty. Each square is tried with
+// the pawn standing on it. Squares on a pawn's own ranks come first.
+func (p *PlayScene) takeableSquares(i int) []challenge.Step {
+	enemy := p.board.At(p.targets[i])
+	var home, edge []challenge.Step
+	for r := 0; r < p.board.Height(); r++ {
+		for f := 0; f < p.board.Width(); f++ {
+			sq := chess.Sq(f, r)
+			if sq == p.at || !p.board.At(sq).IsEmpty() {
+				continue
+			}
+			nb := p.board.Clone()
+			nb.Set(p.targets[i], chess.Piece{})
+			nb.Set(sq, enemy)
+			d := challenge.MovesTo(nb, p.at, sq, maxJourney)
+			if d <= 0 {
+				continue
+			}
+			step := challenge.Step{Square: sq, Moves: d}
+			if r >= 1 && r <= p.board.Height()-2 {
+				home = append(home, step)
+			} else {
+				edge = append(edge, step)
+			}
+		}
+	}
+	// Pawns stay on ranks a pawn could really be on, if there is any such square.
+	if len(home) > 0 {
+		return home
+	}
+	return edge
 }
 
 func (p *PlayScene) collectStar(ctx *Context, m layout.Metrics) {
@@ -568,7 +637,7 @@ func (p *PlayScene) hints() []render.Hint {
 		p.hintBuf = append(p.hintBuf, render.Hint{
 			Square:  sq,
 			Capture: !p.board.At(sq).IsEmpty(),
-			Target:  indexOfSquare(p.targets, sq) >= 0,
+			Target:  !p.capture && indexOfSquare(p.targets, sq) >= 0,
 		})
 	}
 	return p.hintBuf
@@ -577,6 +646,9 @@ func (p *PlayScene) hints() []render.Hint {
 // drawStars draws every star still on the board, and the last one flashing
 // bigger and fading as it is collected.
 func (p *PlayScene) drawStars(dst *ebiten.Image, ctx *Context, m layout.Metrics) {
+	if p.capture {
+		return // the pawns on the board are the targets; no stars
+	}
 	for _, t := range p.targets {
 		render.DrawStar(dst, t, m, p.starScale, ctx.T)
 	}
