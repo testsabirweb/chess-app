@@ -6,6 +6,9 @@ Phases 0, 2, 3, 4 and 5 are implemented (shared round kit, mode row, "Which piec
 stars", "Catch the pawns"). Phases 6–7 are still to do. Phase 4 added `challenge.Puzzle`, `Tour` and `NewTreasure`
 (`internal/challenge/tour.go`); `PlayScene` now takes a `next func() challenge.Puzzle`, so Catch the
 pawns and Stay safe only need a new puzzle source plus their own rules.
+Catch the pawns is the same scene with `capture` set (the targets are real black pawns). Its pawn
+relocation scans every empty square with the pawn placed on it, because a pawn piece only captures
+onto an occupied square, so "squares it can reach while empty" is the wrong test for pawns.
 
 **Phase 1 (voice clips) was built and then removed** at the parent's request; the app is back to
 sound effects only. Ignore every mention of voice clips, `Say`, `ClipID`, `oops` rate limiting and
