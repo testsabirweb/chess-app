@@ -1,4 +1,4 @@
-.PHONY: run test shots voice wasm serve tools bind apk apk-release install install-release logs verify-16k clean
+.PHONY: run test shots wasm serve tools bind apk apk-release install install-release logs verify-16k clean
 
 run:
 	go run .
@@ -15,16 +15,6 @@ shots:
 	go run ./cmd/shot -out shots/tablet     -scene play -piece rook -stickers 4 -w 800 -h 1280 -scale 2.0
 	go run ./cmd/shot -out shots/landscape  -scene play -piece rook -stickers 4 -w 1280 -h 800 -scale 2.0
 	go run ./cmd/shot -out shots/small      -scene play -piece rook -stickers 4 -w 320 -h 533 -scale 1.5
-
-# Regenerate the spoken clips in internal/sfx/voice from clips.txt using the
-# Mac's built-in text-to-speech. Overwrite any .wav by hand with a better
-# recording; the app plays whatever is there.
-voice:
-	@cd internal/sfx/voice && while IFS='|' read -r name text; do \
-	  [ -n "$$name" ] || continue; \
-	  say -v Samantha -r 150 -o "$$name.aiff" "$$text" && \
-	  afconvert -f WAVE -d LEI16@24000 -c 1 "$$name.aiff" "$$name.wav" && rm "$$name.aiff"; \
-	  echo "$$name.wav"; done < clips.txt
 
 wasm:
 	GOOS=js GOARCH=wasm go build -o web/game.wasm .

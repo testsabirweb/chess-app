@@ -74,7 +74,6 @@ type WhichScene struct {
 	wobbleSq  chess.Square
 	wobbleT   float64
 	wobbleAmp float64
-	lastOops  float64
 }
 
 func NewWhichScene(g *Game) *WhichScene {
@@ -84,12 +83,12 @@ func NewWhichScene(g *Game) *WhichScene {
 		starPulse: anim.Pulse{Period: 1.6},
 		hopTween:  anim.Tween{Duration: 0.42, Ease: anim.EaseInOutCubic},
 	}
-	s.deal(g.ctx.SFX)
+	s.deal()
 	return s
 }
 
 // deal sets up the next round: a new set of pieces and a star only one can reach.
-func (s *WhichScene) deal(bank *sfx.Bank) {
+func (s *WhichScene) deal() {
 	n := 3
 	if s.round < whichEasyRounds {
 		n = 2
@@ -114,9 +113,6 @@ func (s *WhichScene) deal(bank *sfx.Bank) {
 	s.showT = 0
 	s.holding = false
 	s.won = false
-	if bank != nil {
-		bank.Say(sfx.ClipWhich)
-	}
 }
 
 func (s *WhichScene) Update(ctx *Context) error {
@@ -143,7 +139,7 @@ func (s *WhichScene) Update(ctx *Context) error {
 		return nil
 	}
 	if deal {
-		s.deal(ctx.SFX)
+		s.deal()
 	}
 
 	if s.kit.busy() {
@@ -207,7 +203,6 @@ func (s *WhichScene) handleTap(ctx *Context, x, y float64, m layout.Metrics) {
 		// A toddler's instinct is to tap the star. Asking the question again
 		// teaches more than a buzz would.
 		ctx.SFX.Play(sfx.SndButton)
-		ctx.SFX.Say(sfx.ClipWhich)
 		return
 	}
 	s.oops(ctx, sq, m)
@@ -227,7 +222,6 @@ func (s *WhichScene) wrong(ctx *Context, i int, m layout.Metrics) {
 	s.showing = i
 	s.showT = whichShowDur
 	ctx.SFX.Play(sfx.SndOops)
-	ctx.SFX.Say(pieceClip(s.cur.Board.At(s.cur.Pieces[i]).Type))
 
 	s.wobbleSq = s.cur.Pieces[i]
 	s.wobbleT = 0.25
@@ -253,7 +247,6 @@ func (s *WhichScene) buildHints(i int) {
 // step - tapping the star himself - is the part that is his to do.
 func (s *WhichScene) pickUp(ctx *Context) {
 	ctx.SFX.Play(sfx.SndButton)
-	ctx.SFX.Say(pieceClip(s.cur.Board.At(s.cur.Answer).Type))
 	if s.showing >= 0 {
 		s.dim[s.showing] = true
 		s.showing = -1
@@ -264,10 +257,6 @@ func (s *WhichScene) pickUp(ctx *Context) {
 
 func (s *WhichScene) oops(ctx *Context, sq chess.Square, m layout.Metrics) {
 	ctx.SFX.Play(sfx.SndOops)
-	if s.lastOops == 0 || ctx.T-s.lastOops >= oopsSpeechGap {
-		ctx.SFX.Say(sfx.ClipOops)
-		s.lastOops = ctx.T
-	}
 	s.wobbleSq = sq
 	s.wobbleT = 0.25
 	s.wobbleAmp = m.Cell * 0.025
@@ -293,9 +282,6 @@ func (s *WhichScene) arrive(ctx *Context, m layout.Metrics, cx, cy float64) {
 	perfect := s.tries == 0
 	if perfect {
 		ctx.SFX.Play(sfx.SndMilestone)
-		ctx.SFX.Say(sfx.ClipPerfect)
-	} else {
-		ctx.SFX.Say(sfx.ClipYay)
 	}
 	s.kit.win(ctx, m, cx, cy, perfect)
 	s.starPopT = 0.3

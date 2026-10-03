@@ -34,10 +34,24 @@ var modeTable = [...]modeInfo{
 
 func (m Mode) info() modeInfo { return modeTable[m] }
 
-// activeModes are the modes the home screen offers, in order. A mode is added
-// here in the same change that makes it playable, so there is never a button
-// that does nothing. The row of buttons only appears once there is a choice.
+// activeModes are the modes that can be played, in order. A mode is added here
+// in the same change that makes it playable, so there is never a button that
+// does nothing.
 var activeModes = []Mode{ModeStar, ModeWhich}
+
+// rowModes are the modes that get a button on the home screen. The star game
+// has none: it is what the piece cards already play, so a button for it would
+// only be a second way to do the same thing. When no other game exists the row
+// is not drawn at all.
+func rowModes() []Mode {
+	out := make([]Mode, 0, len(activeModes))
+	for _, m := range activeModes {
+		if m != ModeStar {
+			out = append(out, m)
+		}
+	}
+	return out
+}
 
 // beginnerPieces are the pieces the modes that deal their own pieces use. The
 // knight is left out on purpose: its L is the one move he has not got yet, and

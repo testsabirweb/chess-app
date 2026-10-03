@@ -94,7 +94,6 @@ type PlayScene struct {
 	starScale      float64
 	starPopT       float64
 
-	lastOops  float64 // ctx.T of the last spoken "oops"; 0 = never
 	wobbleSq  chess.Square
 	wobbleT   float64
 	wobbleAmp float64
@@ -291,16 +290,8 @@ func (p *PlayScene) hintFade() float64 {
 	return 1 - p.hintT/hintFadeIn
 }
 
-// oopsSpeechGap is the least time between two spoken "oops"es. A toddler
-// jabbing at the board would otherwise be told off every half second.
-const oopsSpeechGap = 6.0
-
 func (p *PlayScene) oops(ctx *Context, sq chess.Square, m layout.Metrics) {
 	ctx.SFX.Play(sfx.SndOops)
-	if p.lastOops == 0 || ctx.T-p.lastOops >= oopsSpeechGap {
-		ctx.SFX.Say(sfx.ClipOops)
-		p.lastOops = ctx.T
-	}
 	p.wobbleSq = sq
 	p.wobbleT = 0.25
 	p.wobbleAmp = m.Cell * 0.025
@@ -438,9 +429,6 @@ func (p *PlayScene) collectStar(ctx *Context, m layout.Metrics) {
 	perfect := p.optimal > 0 && p.steps == p.optimal
 	if perfect {
 		ctx.SFX.Play(sfx.SndMilestone)
-		ctx.SFX.Say(sfx.ClipPerfect)
-	} else {
-		ctx.SFX.Say(sfx.ClipYay)
 	}
 
 	cr := m.CellRect(int(p.target.File), int(p.target.Rank))

@@ -67,7 +67,7 @@ func TestHomeLayoutWithAllModes(t *testing.T) {
 			}
 			others := []layout.Rect{r.play, r.label, r.tray}
 			others = append(others, r.cards[:]...)
-			for i := range activeModes {
+			for i := range rowModes() {
 				tile := r.modes[i]
 				if tile.W <= 0 || tile.H <= 0 {
 					t.Fatalf("mode %d has no tile", i)
@@ -81,7 +81,7 @@ func TestHomeLayoutWithAllModes(t *testing.T) {
 						t.Fatalf("mode %d tile %+v overlaps band %d %+v", i, tile, j, o)
 					}
 				}
-				for j := i + 1; j < len(activeModes); j++ {
+				for j := i + 1; j < len(rowModes()); j++ {
 					if rectsTouch(tile, r.modes[j]) {
 						t.Fatalf("mode tiles %d and %d overlap", i, j)
 					}
@@ -91,8 +91,8 @@ func TestHomeLayoutWithAllModes(t *testing.T) {
 	}
 }
 
-// Until a second mode exists the home screen has no mode row at all.
-func TestHomeHasNoModeRowForOneMode(t *testing.T) {
+// Until there is a game besides the star game, the home screen has no mode row.
+func TestHomeHasNoModeRowForOnlyTheStarGame(t *testing.T) {
 	saved := activeModes
 	t.Cleanup(func() { activeModes = saved })
 	activeModes = []Mode{ModeStar}

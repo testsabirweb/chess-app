@@ -224,7 +224,6 @@ func (k *roundKit) finishReward(ctx *Context) {
 	total := k.game.AddSticker(k.reward.emoji)
 	if total%milestoneEvery == 0 {
 		ctx.SFX.Play(sfx.SndMilestone)
-		ctx.SFX.Say(sfx.ClipGreatJob)
 		k.phase = kitMilestone
 		k.milestoneT = 3.4
 		k.milestoneCount = total

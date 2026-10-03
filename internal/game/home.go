@@ -32,7 +32,7 @@ func NewHomeScene(g *Game) *HomeScene { return &HomeScene{game: g, pressed: -1} 
 type homeRects struct {
 	title, play, label, tray layout.Rect
 	cards                    [6]layout.Rect
-	// modeRow holds the mode buttons, one per activeModes entry in modes. It is
+	// modeRow holds the mode buttons, one per rowModes entry in modes. It is
 	// empty (zero height) when there is only one mode to choose.
 	modeRow layout.Rect
 	modes   [len(modeTable)]layout.Rect
@@ -40,8 +40,8 @@ type homeRects struct {
 
 // layoutModes spreads one square button per active mode across the row.
 func (r *homeRects) layoutModes(row layout.Rect) {
-	n := len(activeModes)
-	if n < 2 || row.H <= 0 {
+	n := len(rowModes())
+	if n < 1 || row.H <= 0 {
 		return
 	}
 	r.modeRow = row
@@ -100,7 +100,7 @@ func homeLayoutPortrait(m layout.Metrics) homeRects {
 	trayH := math.Min(math.Max(s.H*0.11, m.MinTap*0.9), homeDp(m, 130))
 	modeH := 0.0
 	gaps := 4 * gap
-	if len(activeModes) > 1 {
+	if len(rowModes()) > 0 {
 		modeH = math.Min(math.Max(s.H*0.07, m.MinTap), homeDp(m, 64))
 		gaps += gap
 	}
@@ -162,7 +162,7 @@ func homeLayoutLandscape(m layout.Metrics) homeRects {
 	labelH := math.Min(panelH*0.08, homeDp(m, 40))
 	trayH := math.Min(math.Max(panelH*0.15, m.MinTap*0.9), homeDp(m, 100))
 	modeH, vGaps := 0.0, 2.0
-	if len(activeModes) > 1 {
+	if len(rowModes()) > 0 {
 		modeH = math.Min(math.Max(panelH*0.12, m.MinTap), homeDp(m, 56))
 		vGaps++
 	}
@@ -250,19 +250,21 @@ func (h *HomeScene) Update(ctx *Context) error {
 			h.arm(ctx, 0, h.game.mode, chess.Rook)
 			return nil
 		}
-		for i := range activeModes {
+		for i, mode := range rowModes() {
 			if !r.modes[i].Contains(ev.X, ev.Y) {
 				continue
 			}
-			if mode := activeModes[i]; mode.info().needsPiece && mode != h.game.mode {
-				// Choosing a different game that needs a piece waits for the
-				// piece card; the gold frame moves to show it took.
+			if mode.info().needsPiece {
+				// A game that needs a piece waits for the piece card, and the
+				// gold frame shows it took. Tapping it again drops back to the
+				// star game the cards play by default.
 				ctx.SFX.Play(sfx.SndButton)
-				h.game.mode = mode
+				if h.game.mode == mode {
+					h.game.mode = ModeStar
+				} else {
+					h.game.mode = mode
+				}
 			} else {
-				// Tapping the game that is already chosen starts it, with the
-				// rook, like PLAY. A button that does nothing when pressed reads
-				// as broken.
 				h.arm(ctx, -1, mode, chess.Rook)
 			}
 			return nil
@@ -277,32 +279,10 @@ func (h *HomeScene) Update(ctx *Context) error {
 	return nil
 }
 
-// pieceClip is the spoken name of a piece.
-func pieceClip(pt chess.PieceType) sfx.ClipID {
-	switch pt {
-	case chess.Pawn:
-		return sfx.ClipPawn
-	case chess.Knight:
-		return sfx.ClipKnight
-	case chess.Bishop:
-		return sfx.ClipBishop
-	case chess.Rook:
-		return sfx.ClipRook
-	case chess.Queen:
-		return sfx.ClipQueen
-	default:
-		return sfx.ClipKing
-	}
-}
-
 // arm presses a button and, once it has visibly squashed, starts the game.
 // slot is the button's place in the squash animation (-1 for none).
 func (h *HomeScene) arm(ctx *Context, slot int, mode Mode, pt chess.PieceType) {
 	ctx.SFX.Play(sfx.SndButton)
-	if slot > 0 {
-		// Tapping a card says its name, so he hears what he is looking at.
-		ctx.SFX.Say(pieceClip(pt))
-	}
 	h.pressed = slot
 	h.pressT = pressHold
 	h.pendPick = pt
@@ -333,7 +313,7 @@ func (h *HomeScene) Draw(dst *ebiten.Image, ctx *Context) {
 	h.drawModes(dst, ctx, r)
 
 	label := "Pick a piece"
-	if len(activeModes) > 1 {
+	if h.game.mode != ModeStar {
 		label = h.game.mode.info().name + " - pick a piece"
 	}
 	lcx, lcy := r.label.Center()
@@ -349,12 +329,12 @@ func (h *HomeScene) Draw(dst *ebiten.Image, ctx *Context) {
 // drawModes draws one round button per game. The one picked for the piece cards
 // sits in a gold frame.
 func (h *HomeScene) drawModes(dst *ebiten.Image, ctx *Context, r homeRects) {
-	for i, mode := range activeModes {
+	for i, mode := range rowModes() {
 		tr := r.modes[i]
 		if tr.W <= 0 {
 			continue
 		}
-		if mode == h.game.mode && mode.info().needsPiece {
+		if mode == h.game.mode {
 			pad := tr.W * 0.08
 			render.FillRoundRect(dst, tr.X-pad, tr.Y-pad, tr.W+2*pad, tr.H+2*pad, tr.W*0.42+pad, render.ColorStarGlow)
 		}

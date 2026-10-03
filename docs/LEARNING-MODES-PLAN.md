@@ -2,10 +2,21 @@
 
 ## Status
 
-Phases 0–3 are implemented (shared round kit, voice clips, mode row, "Which piece?"). Phases 4–7 are
-still to do. Differences from the text below: the voice clips are WAV files generated with `say`
-(see Phase 1), and the mode row only appears once `activeModes` in `internal/game/mode.go` has two
-or more entries; a mode is added to that list in the same change that makes it playable.
+Phases 0, 2 and 3 are implemented (shared round kit, mode row, "Which piece?"). Phases 4–7 are
+still to do.
+
+**Phase 1 (voice clips) was built and then removed** at the parent's request; the app is back to
+sound effects only. Ignore every mention of voice clips, `Say`, `ClipID`, `oops` rate limiting and
+`make voice` in the phases below.
+
+Other differences from the text below:
+- The star game has no button in the mode row: the piece cards already play it. `rowModes()` in
+  `internal/game/mode.go` lists the modes that do get one, and the row only appears when there is
+  at least one. A mode is added to `activeModes` in the same change that makes it playable.
+- Buttons for games that need a piece toggle (tap again to go back to the star game); games that
+  deal their own pieces start straight away.
+- In "Which piece?" the child moves the piece: tapping the right piece picks it up and shows its
+  moves, and tapping the star makes it hop.
 
 ## Context
 

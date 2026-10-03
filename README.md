@@ -19,24 +19,18 @@ square it can reach.
 
 ### Other games
 
-Once there is more than one game, a row of round buttons appears under **PLAY**.
-Tapping one picks the game the piece cards will start (it gets a gold frame);
-games that deal their own pieces start straight away.
+The piece cards (and **PLAY**) always start the star game, so it has no button
+of its own. Every other game gets a round button under **PLAY**: games that deal
+their own pieces start when tapped; games that need a piece are picked first (the
+button gets a gold frame) and started by a piece card. Tap the button again to
+go back to the star game.
 
 - **Which piece?** — two or three pieces and a star. Exactly one piece can reach
   the star in a single move. Tap it to pick it up, then tap the star to move it
   there yourself. A wrong pick shows what
-  that piece *can* do, says its name, then fades out of the running, so the
+  that piece *can* do, then fades out of the running, so the
   next guess is easier. Getting it right first time earns the "Perfect!" party.
   The knight is never dealt in this game.
-
-### Voices
-
-Spoken clips (piece names, "Yay!", "Perfect!", "Oops. Try again!", ...) live in
-`internal/sfx/voice/`. What each one says is in `clips.txt`; `make voice`
-regenerates the `.wav` files from it with the Mac's built-in text-to-speech.
-Drop a better recording over any `.wav` and the app plays that instead. A
-missing clip is just silent.
 
 ### Knobs worth knowing
 
@@ -98,7 +92,6 @@ That installs and opens the app. Rebuild anytime with `make apk` then `make inst
 ```bash
 make test          # unit tests
 make shots         # render PNG screenshots at Edge 50 Neo metrics into shots/
-make voice         # regenerate the spoken clips (macOS text-to-speech)
 make bind          # rebuild native Android library (slow, first time ~minutes)
 make apk           # build debug APK (local dev)
 make apk-release   # build release APK (unsigned locally unless KEYSTORE_* env set)
