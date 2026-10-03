@@ -85,6 +85,9 @@ func (b *Bank) load(id ID, voices []Voice) {
 }
 
 func (b *Bank) Play(id ID) {
+	if b == nil {
+		return // tests run scenes without an audio device
+	}
 	p, ok := b.players[id]
 	if !ok || p == nil {
 		return

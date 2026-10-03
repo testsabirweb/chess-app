@@ -372,6 +372,10 @@ func (p *PlayScene) land(ctx *Context, m layout.Metrics) {
 	p.syncPiecePos(m)
 
 	if p.at == p.target {
+		// The hop is over. Leaving the state at stateMoving would have the next
+		// frame find the finished tween and land all over again, collecting the
+		// same star every frame; the kit's busy flag keeps the board quiet now.
+		p.state = stateIdle
 		p.collectStar(ctx, m)
 		return
 	}

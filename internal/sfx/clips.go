@@ -88,6 +88,9 @@ func (b *Bank) loadClips() {
 // the last short, so two sentences never talk over each other. Effects from
 // Play are separate and keep layering as before.
 func (b *Bank) Say(id ClipID) {
+	if b == nil {
+		return
+	}
 	p := b.clips[id]
 	if p == nil {
 		return

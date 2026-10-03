@@ -254,11 +254,15 @@ func (h *HomeScene) Update(ctx *Context) error {
 			if !r.modes[i].Contains(ev.X, ev.Y) {
 				continue
 			}
-			if mode := activeModes[i]; mode.info().needsPiece {
-				// Choosing a game that needs a piece waits for the piece card.
+			if mode := activeModes[i]; mode.info().needsPiece && mode != h.game.mode {
+				// Choosing a different game that needs a piece waits for the
+				// piece card; the gold frame moves to show it took.
 				ctx.SFX.Play(sfx.SndButton)
 				h.game.mode = mode
 			} else {
+				// Tapping the game that is already chosen starts it, with the
+				// rook, like PLAY. A button that does nothing when pressed reads
+				// as broken.
 				h.arm(ctx, -1, mode, chess.Rook)
 			}
 			return nil
