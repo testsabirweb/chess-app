@@ -29,6 +29,14 @@ var uiEmoji = map[string]bool{
 	"1f680":   true, // rocket, on the Play button
 	"1f3e0":   true, // house, on the Home button
 	"1f3c6":   true, // trophy, next to the sticker count
+
+	// The home screen's mode buttons. A cookie or a gem handed out as a prize
+	// would read as a second copy of the button.
+	"2753":  true, // question mark: Which piece?
+	"1f48e": true, // gem: Collect the stars
+	"1f36a": true, // cookie: Catch the pawns
+	"1f6e1": true, // shield: Stay safe
+	"1f91d": true, // handshake: Pawn Wars
 }
 
 func init() {

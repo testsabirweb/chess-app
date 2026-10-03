@@ -86,6 +86,14 @@ var (
 	}
 )
 
+// The mode buttons on the home screen are cream, not one of the card colours:
+// their icons are bright emoji, and a red question mark on an orange card
+// disappears.
+var (
+	ColorModeTile     = color.RGBA{238, 230, 205, 255}
+	ColorModeTileEdge = color.RGBA{176, 164, 124, 255}
+)
+
 // PieceCardColors are the six card colours on the home screen, indexed the same
 // way as game.allPieces (pawn, knight, bishop, rook, queen, king).
 var PieceCardColors = []color.RGBA{

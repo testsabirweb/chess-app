@@ -137,6 +137,25 @@ func tapTowardStar(g *game.Game) {
 	g.TapSquare(int(pick.File), int(pick.Rank))
 }
 
+// tapWrongPiece taps a piece that cannot reach the star.
+func tapWrongPiece(g *game.Game) {
+	if info, ok := g.WhichInfo(); ok {
+		for _, sq := range info.Pieces {
+			if sq != info.Answer {
+				g.TapSquare(int(sq.File), int(sq.Rank))
+				return
+			}
+		}
+	}
+}
+
+// tapRightPiece taps the piece that can reach the star.
+func tapRightPiece(g *game.Game) {
+	if info, ok := g.WhichInfo(); ok {
+		g.TapSquare(int(info.Answer.File), int(info.Answer.Rank))
+	}
+}
+
 func pieceByName(n string) chess.PieceType {
 	switch strings.ToLower(n) {
 	case "pawn":
@@ -157,6 +176,7 @@ func pieceByName(n string) chess.PieceType {
 func main() {
 	out := flag.String("out", "shots", "directory for PNGs")
 	scene := flag.String("scene", "home", "home or play")
+	mode := flag.String("mode", "star", "game mode for the play scene: star, which, treasure, catch, safe, pawnwars")
 	piece := flag.String("piece", "rook", "piece for the play scene")
 	skip := flag.Int("skip", 0, "skip this many generated puzzles first")
 	seed := flag.Int("stickers", 0, "pre-seed this many collected stickers")
@@ -172,7 +192,23 @@ func main() {
 
 	var g *game.Game
 	var steps []step
-	if *scene == "play" {
+	if *scene == "play" && *mode == "which" {
+		g = game.NewInMode(game.ModeWhich, chess.Rook)
+		g.SetHintDelay(*hintDelay)
+		g.SeedStickers(*seed)
+		// A wrong pick first, to see its moves and then see it fade, then the
+		// right piece hops to the star.
+		steps = []step{
+			{frame: 30, shot: "01-idle"},
+			{frame: 34, do: tapWrongPiece},
+			{frame: 46, shot: "02-wrong-shows-moves"},
+			{frame: 135, shot: "03-wrong-faded"},
+			{frame: 140, do: tapRightPiece},
+			{frame: 150, shot: "04-hopping"},
+			{frame: 176, shot: "05-reward-pop"},
+			{frame: 200, shot: "06-reward-fly"},
+		}
+	} else if *scene == "play" {
 		g = game.NewInPlay(pieceByName(*piece))
 		// The pause before the hints is off by default: these shots are for
 		// looking at the hinted board, not for sitting through the wait. Pass

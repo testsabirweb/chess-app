@@ -119,7 +119,13 @@ func PieceSilhouetteForTest(p chess.Piece, size int) ([]bool, error) {
 // shadow so it looks like it is standing on the square rather than printed on
 // it; on flat surfaces (the home cards, the header) pass shadow=false.
 func DrawPiece(dst *ebiten.Image, p chess.Piece, r layout.Rect, lift float64, shadow bool) {
-	if p.IsEmpty() {
+	DrawPieceAlpha(dst, p, r, lift, shadow, 1)
+}
+
+// DrawPieceAlpha is DrawPiece at partial opacity, for a piece that has been
+// ruled out and should recede without vanishing.
+func DrawPieceAlpha(dst *ebiten.Image, p chess.Piece, r layout.Rect, lift float64, shadow bool, alpha float64) {
+	if p.IsEmpty() || alpha <= 0 {
 		return
 	}
 	img := pieceImage(p, int(r.W+0.5))
@@ -130,13 +136,14 @@ func DrawPiece(dst *ebiten.Image, p chess.Piece, r layout.Rect, lift float64, sh
 		cx := r.X + r.W/2
 		baseY := r.Y + r.H*0.92
 		shadowScale := 1.0 - clamp01(lift/(r.H*0.5))*0.35
-		DrawSoftShadow(dst, cx, baseY, r.W*0.34*shadowScale, r.H*0.12*shadowScale, ColorShadow)
+		DrawSoftShadow(dst, cx, baseY, r.W*0.34*shadowScale, r.H*0.12*shadowScale, Alpha(ColorShadow, alpha))
 	}
 
 	op := &ebiten.DrawImageOptions{}
 	op.GeoM.Scale(scale, scale)
 	op.GeoM.Translate(r.X, r.Y+(r.H-float64(b.Dy())*scale)/2-lift)
 	op.Filter = ebiten.FilterLinear
+	op.ColorScale.ScaleAlpha(float32(alpha))
 	dst.DrawImage(img, op)
 }
 

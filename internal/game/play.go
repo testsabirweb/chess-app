@@ -1,7 +1,6 @@
 package game
 
 import (
-	"fmt"
 	"math"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -15,19 +14,15 @@ import (
 
 type playState int
 
+// A round's win and the wind-down after it belong to roundKit; the scene only
+// tells idle from mid-hop.
 const (
 	stateIdle playState = iota
 	stateMoving
-	stateCelebrating
-	stateMilestone
-	stateAdvancing
 )
 
 // maxJourney bounds how far away the star may be planted, in moves.
 const maxJourney = 3
-
-// milestoneEvery is how many stickers earn the big celebration.
-const milestoneEvery = 5
 
 // defaultHintDelay is how long the piece sits picked up before the legal-move
 // dots fade in, and hintFadeIn is how long they take to arrive once it is over.
@@ -41,21 +36,6 @@ const (
 	defaultHintDelay = 2.5
 	hintFadeIn       = 0.45
 )
-
-// milestoneMessages are shown at random alongside the sticker count. Picked
-// from Game.RewardIntN, the same real-randomness source as the stickers
-// themselves, not the deterministic puzzle stream.
-var milestoneMessages = []string{
-	"Great job!",
-	"Keep it up!",
-	"You're a star!",
-	"Amazing work!",
-	"Wow, look at you go!",
-	"Fantastic!",
-	"You did it!",
-	"Super job!",
-	"Way to go!",
-}
 
 // movePath holds the waypoints a piece travels through during a move. Most
 // pieces go straight from A to B (n=2); the knight takes an L via a corner (n=3).
@@ -80,6 +60,8 @@ type PlayScene struct {
 	solutions []chess.Square
 	steps     int
 
+	kit roundKit
+
 	state         playState
 	pieceSelected bool
 	laidOut       bool
@@ -92,7 +74,6 @@ type PlayScene struct {
 	// piece started, kept in step with the star when it relocates. Matching it
 	// earns the bigger celebration.
 	optimal int
-	perfect bool
 
 	moveTween anim.Tween
 	movePath  movePath
@@ -105,8 +86,6 @@ type PlayScene struct {
 	trailHold float64
 
 	starPulse anim.Pulse
-	confetti  anim.Confetti
-	sprites   *render.Sprites
 
 	pieceX, pieceY float64
 	fromX, fromY   float64
@@ -115,36 +94,12 @@ type PlayScene struct {
 	starScale      float64
 	starPopT       float64
 
+	lastOops  float64 // ctx.T of the last spoken "oops"; 0 = never
 	wobbleSq  chess.Square
 	wobbleT   float64
 	wobbleAmp float64
 
-	hintBuf      []render.Hint
-	reward       rewardFly
-	rewardActive bool
-
-	advanceT   float64
-	advanceSwp bool
-
-	milestoneT      float64
-	milestoneCount  int
-	milestoneEmojis []int
-	milestoneMsg    string
-
-	backHoldT    float64
-	backInstallF bool
-}
-
-// rewardFly is the sticker popping out of the star and flying into the tray.
-type rewardFly struct {
-	emoji              int
-	fromX, fromY       float64
-	toX, toY           float64
-	x, y, size         float64
-	pop, fly           anim.Tween
-	phase              int // 0 = popping, 1 = flying, 2 = landed
-	popSize, traySize  float64
-	popDoneX, popDoneY float64
+	hintBuf []render.Hint
 }
 
 func NewPlayScene(g *Game, pt chess.PieceType) *PlayScene {
@@ -158,10 +113,10 @@ func NewPlayScene(g *Game, pt chess.PieceType) *PlayScene {
 	}
 	ps := &PlayScene{
 		game:      g,
+		kit:       newRoundKit(g),
 		gen:       challenge.NewGenerator(spec, g.ctx.Rand),
 		pieceType: pt,
 		starPulse: anim.Pulse{Period: 1.6},
-		sprites:   render.NewSprites(),
 		moveTween: anim.Tween{Duration: 0.42, Ease: anim.EaseInOutCubic},
 	}
 	ps.newChallenge()
@@ -176,7 +131,6 @@ func (p *PlayScene) newChallenge() {
 	p.solutions = p.board.MoveTargets(p.at)
 	p.steps = 0
 	p.optimal = p.cur.Moves
-	p.perfect = false
 	p.pieceSelected = false
 	p.hintT = 0
 	p.laidOut = false
@@ -195,7 +149,6 @@ func (p *PlayScene) Update(ctx *Context) error {
 	}
 
 	p.starScale = p.starPulse.Update(ctx.DT)
-	p.confetti.Update(ctx.DT, m.Cell*8)
 	if p.starPopT > 0 {
 		p.starPopT -= ctx.DT
 	}
@@ -213,32 +166,21 @@ func (p *PlayScene) Update(ctx *Context) error {
 			p.trailFade = 0
 		}
 	}
-	p.updateReward(ctx, m)
 
-	back := backButtonRect(m)
-	for _, ev := range ctx.Pointer.JustReleased {
-		if back.Contains(ev.X, ev.Y) && p.backHoldT > 0 && p.backHoldT < 2.0 {
-			ctx.SFX.Play(sfx.SndButton)
-			ctx.Switch(NewHomeScene(p.game))
-			return nil
-		}
+	leave, deal := p.kit.update(ctx, m)
+	if leave {
+		ctx.Switch(NewHomeScene(p.game))
+		return nil
 	}
-	if held, ok := ctx.Pointer.Held(); ok && back.Contains(held.X, held.Y) {
-		p.backHoldT += ctx.DT
-		if p.backHoldT >= 2.0 && UpdateReady() && !p.backInstallF {
-			RequestInstallUpdate()
-			p.backInstallF = true
-		}
-	} else {
-		p.backHoldT = 0
-		p.backInstallF = false
+	if deal {
+		p.newChallenge()
+		p.syncPiecePos(m)
+		p.laidOut = true
+		p.moveTween.Reset()
 	}
-	for _, ev := range ctx.Pointer.Pressed() {
-		switch p.state {
-		case stateIdle:
+	if p.idle() {
+		for _, ev := range ctx.Pointer.Pressed() {
 			p.handleTap(ctx, ev.X, ev.Y, m)
-		case stateMilestone:
-			p.milestoneT = 0
 		}
 	}
 
@@ -278,34 +220,9 @@ func (p *PlayScene) Update(ctx *Context) error {
 				}
 			}
 		}
-	case stateCelebrating:
-		if p.reward.phase == 2 {
-			p.finishReward(ctx)
-		}
-	case stateMilestone:
-		p.milestoneT -= ctx.DT
-		if p.milestoneT <= 0 {
-			p.state = stateAdvancing
-			p.advanceT = 0
-			p.advanceSwp = false
-		}
-	case stateAdvancing:
-		p.advanceT += ctx.DT
-		if !p.advanceSwp && p.advanceT >= advanceHalf {
-			p.advanceSwp = true
-			p.newChallenge()
-			p.syncPiecePos(m)
-			p.laidOut = true
-		}
-		if p.advanceT >= 2*advanceHalf {
-			p.state = stateIdle
-			p.moveTween.Reset()
-		}
 	}
 	return nil
 }
-
-const advanceHalf = 0.22
 
 // Knight trail timing: show the planned L as soon as the move starts, brighten
 // at the corner, then hold at full strength so a toddler can trace the shape.
@@ -362,7 +279,7 @@ func (p *PlayScene) pickUp(ctx *Context) {
 // hintFade is how strongly the move dots are showing: nothing during the
 // pause, ramping to full over its last hintFadeIn seconds.
 func (p *PlayScene) hintFade() float64 {
-	if !p.pieceSelected || p.state != stateIdle {
+	if !p.pieceSelected || !p.idle() {
 		return 0
 	}
 	if p.hintT <= 0 {
@@ -374,8 +291,16 @@ func (p *PlayScene) hintFade() float64 {
 	return 1 - p.hintT/hintFadeIn
 }
 
+// oopsSpeechGap is the least time between two spoken "oops"es. A toddler
+// jabbing at the board would otherwise be told off every half second.
+const oopsSpeechGap = 6.0
+
 func (p *PlayScene) oops(ctx *Context, sq chess.Square, m layout.Metrics) {
 	ctx.SFX.Play(sfx.SndOops)
+	if p.lastOops == 0 || ctx.T-p.lastOops >= oopsSpeechGap {
+		ctx.SFX.Say(sfx.ClipOops)
+		p.lastOops = ctx.T
+	}
 	p.wobbleSq = sq
 	p.wobbleT = 0.25
 	p.wobbleAmp = m.Cell * 0.025
@@ -476,9 +401,7 @@ func (p *PlayScene) relocateStar(ctx *Context) {
 	steps := challenge.Reach(p.board, p.at, maxJourney)
 	if len(steps) == 0 {
 		// The piece is completely stuck (a pawn on the far rank); start over.
-		p.state = stateAdvancing
-		p.advanceT = 0
-		p.advanceSwp = false
+		p.kit.restart()
 		return
 	}
 	far := steps[:0:0]
@@ -508,80 +431,19 @@ func (p *PlayScene) collectStar(ctx *Context, m layout.Metrics) {
 	// chime, a gold glow on the sticker and a word the grown-up can read out.
 	// Wandering still earns the same sticker, so there is nothing to lose by
 	// exploring - only something extra to win by looking first.
-	p.perfect = p.optimal > 0 && p.steps == p.optimal
-	burst := 30
-	if p.perfect {
-		burst = 60
+	perfect := p.optimal > 0 && p.steps == p.optimal
+	if perfect {
 		ctx.SFX.Play(sfx.SndMilestone)
+		ctx.SFX.Say(sfx.ClipPerfect)
+	} else {
+		ctx.SFX.Say(sfx.ClipYay)
 	}
 
 	cr := m.CellRect(int(p.target.File), int(p.target.Rank))
 	cx, cy := cr.Center()
-	p.confetti.Burst(ctx.Rand, cx, cy, burst, m.Cell)
+	p.kit.win(ctx, m, cx, cy, perfect)
 	p.starPopT = 0.3
 	p.pieceSelected = false
-	p.state = stateCelebrating
-
-	slot := trayEmojiPos(m, len(p.game.Stickers()))
-	p.reward = rewardFly{
-		emoji:    p.game.NextRewardEmoji(),
-		fromX:    cx,
-		fromY:    cy,
-		toX:      slot.X,
-		toY:      slot.Y,
-		popSize:  m.Cell * 0.78,
-		traySize: slot.W,
-		pop:      anim.Tween{Duration: 0.42, Ease: anim.EaseOutBack},
-		fly:      anim.Tween{Duration: 0.55, Ease: anim.EaseInOutCubic},
-	}
-	p.reward.pop.Start()
-	p.reward.x, p.reward.y = cx, cy
-	p.reward.size = 0
-	p.rewardActive = true
-}
-
-func (p *PlayScene) updateReward(ctx *Context, m layout.Metrics) {
-	if !p.rewardActive {
-		return
-	}
-	switch p.reward.phase {
-	case 0:
-		t := p.reward.pop.Update(ctx.DT)
-		p.reward.size = p.reward.popSize * t
-		p.reward.y = p.reward.fromY - m.Cell*0.25*t
-		if p.reward.pop.Done() {
-			p.reward.phase = 1
-			p.reward.popDoneX, p.reward.popDoneY = p.reward.x, p.reward.y
-			p.reward.fly.Start()
-		}
-	case 1:
-		t := p.reward.fly.Update(ctx.DT)
-		p.reward.x = lerp(p.reward.popDoneX, p.reward.toX, t)
-		// A shallow arc so it looks tossed into the tray, not dragged.
-		p.reward.y = lerp(p.reward.popDoneY, p.reward.toY, t) - math.Sin(t*math.Pi)*m.Cell*0.55
-		p.reward.size = lerp(p.reward.popSize, p.reward.traySize, t)
-		if p.reward.fly.Done() {
-			p.reward.phase = 2
-		}
-	}
-}
-
-func (p *PlayScene) finishReward(ctx *Context) {
-	p.rewardActive = false
-	total := p.game.AddSticker(p.reward.emoji)
-	if total%milestoneEvery == 0 {
-		ctx.SFX.Play(sfx.SndMilestone)
-		p.state = stateMilestone
-		p.milestoneT = 3.4
-		p.milestoneCount = total
-		p.milestoneMsg = milestoneMessages[p.game.RewardIntN(len(milestoneMessages))]
-		all := p.game.Stickers()
-		p.milestoneEmojis = all[len(all)-milestoneEvery:]
-		return
-	}
-	p.state = stateAdvancing
-	p.advanceT = 0
-	p.advanceSwp = false
 }
 
 // --- drawing -----------------------------------------------------------------
@@ -590,11 +452,11 @@ func (p *PlayScene) Draw(dst *ebiten.Image, ctx *Context) {
 	m := ctx.M
 	render.DrawBackground(dst, m)
 
-	p.drawHeader(dst, ctx, m)
+	p.kit.drawHeader(dst, m, render.PieceName(p.pieceType))
 	render.DrawBoard(dst, m)
 
 	// Hints and the pick-me halo.
-	if p.state == stateIdle {
+	if p.idle() {
 		if p.pieceSelected {
 			render.DrawMoveHints(dst, m, p.hints(), p.hintFade())
 			render.DrawPickableRing(dst, m, p.at, p.starScale, true, ctx.T)
@@ -607,7 +469,7 @@ func (p *PlayScene) Draw(dst *ebiten.Image, ctx *Context) {
 		render.DrawSquareTint(dst, m, p.wobbleSq, 0, 0, render.Alpha(render.ColorShadow, 0.5))
 	}
 
-	if p.state != stateCelebrating || p.starPopT > 0 {
+	if !p.kit.celebrating() || p.starPopT > 0 {
 		p.drawStar(dst, ctx, m)
 	}
 
@@ -625,24 +487,13 @@ func (p *PlayScene) Draw(dst *ebiten.Image, ctx *Context) {
 	}
 
 	p.drawPiece(dst, m)
-	render.DrawConfetti(dst, &p.confetti, p.sprites, m.Cell)
+	p.kit.drawOverlays(dst, ctx, m)
+}
 
-	if p.rewardActive && p.reward.size > 0 {
-		if p.perfect {
-			render.DrawGlow(dst, p.reward.x, p.reward.y, p.reward.size, render.Alpha(render.ColorStarGlow, 0.45))
-		}
-		render.DrawEmoji(dst, render.EmojiName(p.reward.emoji), p.reward.x, p.reward.y, p.reward.size, 0, 1)
-	}
-
-	p.drawFooter(dst, ctx, m)
-
-	if p.state == stateMilestone {
-		p.drawMilestone(dst, ctx, m)
-	}
-	if p.state == stateAdvancing {
-		a := 1 - math.Abs(p.advanceT/advanceHalf-1)
-		render.DrawFilledRect(dst, 0, 0, m.W, m.H, render.Alpha(render.ColorBGTop, clamp01(a)*0.85))
-	}
+// idle is true while the board is waiting for a tap: no hop in flight and no
+// celebration or fade running.
+func (p *PlayScene) idle() bool {
+	return p.state == stateIdle && !p.kit.busy()
 }
 
 // hints describes each legal destination for the renderer, reusing one buffer
@@ -677,7 +528,7 @@ func (p *PlayScene) drawPiece(dst *ebiten.Image, m layout.Metrics) {
 	cr := layout.Rect{X: p.pieceX - m.Cell/2, Y: p.pieceY - m.Cell/2, W: m.Cell, H: m.Cell}
 	cr.X += wx
 	lift := 0.0
-	if p.pieceSelected && p.state == stateIdle {
+	if p.pieceSelected && p.idle() {
 		lift = m.Cell * 0.12
 	}
 	if p.state == stateMoving {
@@ -691,121 +542,6 @@ func (p *PlayScene) drawPiece(dst *ebiten.Image, m layout.Metrics) {
 	if p.cur.Piece.Type == chess.Bishop && render.DarkSquare(p.at) {
 		render.DrawBishopScarf(dst, cr, lift)
 	}
-}
-
-func (p *PlayScene) drawHeader(dst *ebiten.Image, ctx *Context, m layout.Metrics) {
-	b := backButtonRect(m)
-	render.DrawChunkyButton(dst, b.X, b.Y, b.W, b.H, render.ColorBack, render.ColorBackEdge, false)
-	render.DrawChevronLeft(dst, b.X, b.Y, b.W, b.H, b.H*0.12, render.ColorText)
-	if UpdateReady() {
-		dotR := b.H * 0.06
-		render.FillCircleSoft(dst, b.X+b.W-dotR*2.5, b.Y+dotR*2.5, dotR, render.ColorTextDim)
-	}
-
-	// Just the piece's name. The board says everything else, and anything more
-	// up here is one more thing pulling the eye away from the puzzle. The one
-	// exception is the shortest-route cheer, which borrows the same slot while
-	// the confetti is falling so nothing moves.
-	h := m.Header
-	name, clr := render.PieceName(p.pieceType), render.ColorTextDim
-	if p.perfect && (p.state == stateCelebrating || p.state == stateMilestone) {
-		name, clr = "Perfect!", render.ColorStarGlow
-	}
-	size := render.FitTextSize(name, m.BodySize*1.25, h.W*0.6)
-	render.DrawTextShadowed(dst, name, h.X+h.W/2, h.Y+h.H*0.72, size, clr)
-}
-
-func (p *PlayScene) drawFooter(dst *ebiten.Image, ctx *Context, m layout.Metrics) {
-	tr := trayRect(m)
-	render.FillRoundRect(dst, tr.X, tr.Y, tr.W, tr.H, tr.H*0.35, render.ColorTray)
-
-	// Empty slots are drawn too, so the tray reads as a row waiting to be
-	// filled rather than one lonely sticker in a wide bar.
-	slots := traySlots(m)
-	for i := 0; i < slots; i++ {
-		slot := trayEmojiPos(m, i)
-		render.FillCircleSoft(dst, slot.X, slot.Y, slot.W*0.30, render.ColorTraySlot)
-	}
-
-	stickers := p.game.Stickers()
-	show := stickers
-	if len(show) > slots {
-		show = show[len(show)-slots:]
-	}
-	base := len(stickers) - len(show)
-	for i, e := range show {
-		slot := trayEmojiPos(m, base+i)
-		render.DrawEmoji(dst, render.EmojiName(e), slot.X, slot.Y, slot.W, 0, 1)
-	}
-
-}
-
-func (p *PlayScene) drawMilestone(dst *ebiten.Image, ctx *Context, m layout.Metrics) {
-	render.DrawFilledRect(dst, 0, 0, m.W, m.H, render.Alpha(render.ColorBGTop, 0.88))
-	cx := m.W / 2
-	cy := m.H * 0.44
-
-	pw := m.Safe.W
-	ph := m.Cell * 4.1
-	render.FillRoundRect(dst, cx-pw/2, cy-ph/2, pw, ph, m.Cell*0.4, render.ColorPanel)
-	render.DrawGlow(dst, cx, cy, m.W*0.5, render.Alpha(render.ColorStarGlow, 0.22))
-
-	title := fmt.Sprintf("%d Stickers!", p.milestoneCount)
-	render.DrawTextShadowed(dst, title, cx, cy-ph*0.36, render.FitTextSize(title, m.TitleSize*1.0, pw*0.8), render.ColorText)
-
-	render.DrawTextShadowed(dst, p.milestoneMsg, cx, cy-ph*0.14, render.FitTextSize(p.milestoneMsg, m.BodySize*1.15, pw*0.85), render.ColorStarGlow)
-
-	n := len(p.milestoneEmojis)
-	if n > 0 {
-		step := math.Min(m.Cell*0.95, (pw*0.88)/float64(n))
-		startX := cx - step*float64(n-1)/2
-		for i, e := range p.milestoneEmojis {
-			bob := math.Sin(ctx.T*4+float64(i)*0.8) * step * 0.07
-			render.DrawEmoji(dst, render.EmojiName(e), startX+step*float64(i), cy+ph*0.12+bob, step*0.86, 0, 1)
-		}
-	}
-	msg := "Tap to keep playing"
-	render.DrawTextShadowed(dst, msg, cx, cy+ph*0.40, render.FitTextSize(msg, m.BodySize*0.9, pw*0.8), render.ColorTextDim)
-}
-
-// --- footer geometry ---------------------------------------------------------
-
-const traySlotsPortrait = 8
-const traySlotsLandscape = 4
-
-func traySlots(m layout.Metrics) int {
-	if m.Portrait {
-		return traySlotsPortrait
-	}
-	return traySlotsLandscape
-}
-
-func trayRect(m layout.Metrics) layout.Rect {
-	h := math.Min(m.Footer.H*0.40, m.MinTap*0.95)
-	return layout.Rect{X: m.Footer.X, Y: m.Footer.Y + m.Footer.H*0.12, W: m.Footer.W, H: h}
-}
-
-// trayEmojiPos returns the centre and diameter of tray slot i (X, Y are the
-// centre; W is the size).
-func trayEmojiPos(m layout.Metrics, index int) layout.Rect {
-	tr := trayRect(m)
-	slots := traySlots(m)
-	slot := index % slots
-	step := (tr.W - tr.H*0.4) / float64(slots)
-	size := math.Min(step*0.86, tr.H*0.70)
-	x := tr.X + tr.H*0.2 + step*float64(slot) + step/2
-	return layout.Rect{X: x, Y: tr.Y + tr.H/2, W: size, H: size}
-}
-
-// backButtonRect puts the only way out in the top-left corner, deliberately far
-// from where a small hand rests. A big button along the bottom edge gets pressed
-// by accident over and over; this one has to be reached for.
-//
-// It stays a full 48dp tap target - the point is to move it out of the way, not
-// to make it fiddly for the grown-up.
-func backButtonRect(m layout.Metrics) layout.Rect {
-	size := math.Max(m.MinTap, m.Safe.W*0.13)
-	return layout.Rect{X: m.Safe.X, Y: m.Safe.Y, W: size, H: size}
 }
 
 // --- small helpers -----------------------------------------------------------

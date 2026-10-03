@@ -15,6 +15,50 @@ func NewInPlay(pt chess.PieceType) *Game {
 	return g
 }
 
+// NewInMode builds a game that starts straight in the given mode. pt is the
+// piece for the modes that need one.
+func NewInMode(mode Mode, pt chess.PieceType) *Game {
+	g := New()
+	g.mode = mode
+	g.scene = newModeScene(g, mode, pt)
+	return g
+}
+
+// ModeByName finds a mode from the name the screenshot tool is given.
+func ModeByName(name string) (Mode, bool) {
+	switch name {
+	case "star":
+		return ModeStar, true
+	case "which":
+		return ModeWhich, true
+	case "treasure":
+		return ModeTreasure, true
+	case "catch":
+		return ModeCatch, true
+	case "safe":
+		return ModeSafe, true
+	case "pawnwars":
+		return ModePawnWars, true
+	}
+	return ModeStar, false
+}
+
+// WhichInfo is a snapshot of a "Which piece?" round for the screenshot tool.
+type WhichInfo struct {
+	Pieces []chess.Square
+	Answer chess.Square
+	Target chess.Square
+}
+
+// WhichInfo reports the current round, or ok=false on other scenes.
+func (g *Game) WhichInfo() (WhichInfo, bool) {
+	ws, ok := g.scene.(*WhichScene)
+	if !ok {
+		return WhichInfo{}, false
+	}
+	return WhichInfo{Pieces: ws.cur.Pieces, Answer: ws.cur.Answer, Target: ws.cur.Target}, true
+}
+
 // SeedStickers pre-fills the reward tray so the screenshot tool can reach the
 // milestone celebration without playing five rounds.
 func (g *Game) SeedStickers(n int) {

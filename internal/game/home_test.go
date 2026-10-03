@@ -46,3 +46,58 @@ func TestHomeLayoutFitsSafe(t *testing.T) {
 		})
 	}
 }
+
+func rectsTouch(a, b layout.Rect) bool {
+	return a.X < b.X+b.W && b.X < a.X+a.W && a.Y < b.Y+b.H && b.Y < a.Y+a.H
+}
+
+// With every mode on offer the row of mode buttons must still fit the safe
+// area and keep clear of every other band, on every device.
+func TestHomeLayoutWithAllModes(t *testing.T) {
+	saved := activeModes
+	t.Cleanup(func() { activeModes = saved })
+	activeModes = []Mode{ModeStar, ModeWhich, ModeTreasure, ModeCatch, ModeSafe, ModePawnWars}
+
+	for _, d := range homeDevices {
+		t.Run(d.name, func(t *testing.T) {
+			m := layout.Compute(d.w, d.h, d.scale, layout.Insets{}, 5, 5)
+			r := homeLayout(m)
+			if bottom := r.tray.Y + r.tray.H; bottom > m.Safe.Y+m.Safe.H+1e-6 {
+				t.Fatalf("bands overflow safe: bottom=%f safeBottom=%f", bottom, m.Safe.Y+m.Safe.H)
+			}
+			others := []layout.Rect{r.play, r.label, r.tray}
+			others = append(others, r.cards[:]...)
+			for i := range activeModes {
+				tile := r.modes[i]
+				if tile.W <= 0 || tile.H <= 0 {
+					t.Fatalf("mode %d has no tile", i)
+				}
+				if tile.X < m.Safe.X-1e-6 || tile.Y < m.Safe.Y-1e-6 ||
+					tile.X+tile.W > m.Safe.X+m.Safe.W+1e-6 || tile.Y+tile.H > m.Safe.Y+m.Safe.H+1e-6 {
+					t.Fatalf("mode %d tile %+v outside safe %+v", i, tile, m.Safe)
+				}
+				for j, o := range others {
+					if rectsTouch(tile, o) {
+						t.Fatalf("mode %d tile %+v overlaps band %d %+v", i, tile, j, o)
+					}
+				}
+				for j := i + 1; j < len(activeModes); j++ {
+					if rectsTouch(tile, r.modes[j]) {
+						t.Fatalf("mode tiles %d and %d overlap", i, j)
+					}
+				}
+			}
+		})
+	}
+}
+
+// Until a second mode exists the home screen has no mode row at all.
+func TestHomeHasNoModeRowForOneMode(t *testing.T) {
+	saved := activeModes
+	t.Cleanup(func() { activeModes = saved })
+	activeModes = []Mode{ModeStar}
+	m := layout.Compute(1080, 2400, 2.75, layout.Insets{}, 5, 5)
+	if r := homeLayout(m); r.modes[0].W != 0 || r.modeRow.H != 0 {
+		t.Fatalf("unexpected mode row %+v", r.modeRow)
+	}
+}

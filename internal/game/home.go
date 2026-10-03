@@ -23,6 +23,7 @@ type HomeScene struct {
 	pressed  int // -1 none, 0 play, 1..6 piece card
 	pressT   float64
 	pendPick chess.PieceType
+	pendMode Mode
 	pendPlay bool
 }
 
@@ -31,15 +32,38 @@ func NewHomeScene(g *Game) *HomeScene { return &HomeScene{game: g, pressed: -1} 
 type homeRects struct {
 	title, play, label, tray layout.Rect
 	cards                    [6]layout.Rect
+	// modeRow holds the mode buttons, one per activeModes entry in modes. It is
+	// empty (zero height) when there is only one mode to choose.
+	modeRow layout.Rect
+	modes   [len(modeTable)]layout.Rect
+}
+
+// layoutModes spreads one square button per active mode across the row.
+func (r *homeRects) layoutModes(row layout.Rect) {
+	n := len(activeModes)
+	if n < 2 || row.H <= 0 {
+		return
+	}
+	r.modeRow = row
+	g := row.W * 0.03
+	tile := math.Min(row.H, (row.W*0.94-float64(n-1)*g)/float64(n))
+	x := row.X + (row.W-(float64(n)*tile+float64(n-1)*g))/2
+	y := row.Y + (row.H-tile)/2
+	for i := 0; i < n; i++ {
+		r.modes[i] = layout.Rect{X: x + float64(i)*(tile+g), Y: y, W: tile, H: tile}
+	}
 }
 
 func homeDp(m layout.Metrics, v float64) float64 {
 	return v * m.Scale
 }
 
-func scaleHomeBands(titleH, playH, labelH, trayH, gap *float64, cardsH *float64, safeH float64) {
+func scaleHomeBands(titleH, playH, modeH, labelH, trayH, gap *float64, cardsH *float64, safeH float64) {
 	gaps := 4 * *gap
-	total := *titleH + *playH + *labelH + *trayH + gaps
+	if *modeH > 0 {
+		gaps += *gap
+	}
+	total := *titleH + *playH + *modeH + *labelH + *trayH + gaps
 	if *cardsH > 0 {
 		total += *cardsH
 	}
@@ -50,6 +74,7 @@ func scaleHomeBands(titleH, playH, labelH, trayH, gap *float64, cardsH *float64,
 	scale := safeH / total
 	*titleH *= scale
 	*playH *= scale
+	*modeH *= scale
 	*labelH *= scale
 	*trayH *= scale
 	*gap *= scale
@@ -73,10 +98,15 @@ func homeLayoutPortrait(m layout.Metrics) homeRects {
 	playH := math.Min(math.Max(s.H*0.12, m.MinTap*1.25), homeDp(m, 120))
 	labelH := math.Min(s.H*0.055, homeDp(m, 50))
 	trayH := math.Min(math.Max(s.H*0.11, m.MinTap*0.9), homeDp(m, 130))
-
+	modeH := 0.0
 	gaps := 4 * gap
-	cardsH := s.H - titleH - playH - labelH - trayH - gaps
-	scaleHomeBands(&titleH, &playH, &labelH, &trayH, &gap, &cardsH, s.H)
+	if len(activeModes) > 1 {
+		modeH = math.Min(math.Max(s.H*0.07, m.MinTap), homeDp(m, 64))
+		gaps += gap
+	}
+
+	cardsH := s.H - titleH - playH - modeH - labelH - trayH - gaps
+	scaleHomeBands(&titleH, &playH, &modeH, &labelH, &trayH, &gap, &cardsH, s.H)
 
 	var r homeRects
 	y := s.Y
@@ -86,6 +116,11 @@ func homeLayoutPortrait(m layout.Metrics) homeRects {
 	pw := s.W * 0.82
 	r.play = layout.Rect{X: s.X + (s.W-pw)/2, Y: y, W: pw, H: playH}
 	y += playH + gap
+
+	if modeH > 0 {
+		r.layoutModes(layout.Rect{X: s.X, Y: y, W: s.W, H: modeH})
+		y += modeH + gap
+	}
 
 	r.label = layout.Rect{X: s.X, Y: y, W: s.W, H: labelH}
 	y += labelH
@@ -126,22 +161,33 @@ func homeLayoutLandscape(m layout.Metrics) homeRects {
 	playH := math.Min(math.Max(panelH*0.18, m.MinTap*1.25), homeDp(m, 100))
 	labelH := math.Min(panelH*0.08, homeDp(m, 40))
 	trayH := math.Min(math.Max(panelH*0.15, m.MinTap*0.9), homeDp(m, 100))
+	modeH, vGaps := 0.0, 2.0
+	if len(activeModes) > 1 {
+		modeH = math.Min(math.Max(panelH*0.12, m.MinTap), homeDp(m, 56))
+		vGaps++
+	}
 
-	content := playH + labelH + trayH + 2*vGap
+	content := playH + modeH + labelH + trayH + vGaps*vGap
 	cardsH := panelH - content
 	if content > panelH {
 		scale := panelH / content
 		playH *= scale
+		modeH *= scale
 		labelH *= scale
 		trayH *= scale
 		vGap *= scale
-		cardsH = panelH - playH - labelH - trayH - 2*vGap
+		cardsH = panelH - playH - modeH - labelH - trayH - vGaps*vGap
 	}
 
 	y := panelY
 	pw := panelW * 0.82
 	r.play = layout.Rect{X: panelX + (panelW-pw)/2, Y: y, W: pw, H: playH}
 	y += playH + vGap
+
+	if modeH > 0 {
+		r.layoutModes(layout.Rect{X: panelX, Y: y, W: panelW, H: modeH})
+		y += modeH + vGap
+	}
 
 	r.label = layout.Rect{X: panelX, Y: y, W: panelW, H: labelH}
 	y += labelH
@@ -193,7 +239,7 @@ func (h *HomeScene) Update(ctx *Context) error {
 			h.pressed = -1
 			if h.pendPlay {
 				h.pendPlay = false
-				ctx.Switch(NewPlayScene(h.game, h.pendPick))
+				ctx.Switch(newModeScene(h.game, h.pendMode, h.pendPick))
 			}
 		}
 		return nil
@@ -201,12 +247,25 @@ func (h *HomeScene) Update(ctx *Context) error {
 
 	for _, ev := range ctx.Pointer.Pressed() {
 		if r.play.Contains(ev.X, ev.Y) {
-			h.arm(ctx, 0, chess.Rook)
+			h.arm(ctx, 0, h.game.mode, chess.Rook)
+			return nil
+		}
+		for i := range activeModes {
+			if !r.modes[i].Contains(ev.X, ev.Y) {
+				continue
+			}
+			if mode := activeModes[i]; mode.info().needsPiece {
+				// Choosing a game that needs a piece waits for the piece card.
+				ctx.SFX.Play(sfx.SndButton)
+				h.game.mode = mode
+			} else {
+				h.arm(ctx, -1, mode, chess.Rook)
+			}
 			return nil
 		}
 		for i, cr := range r.cards {
 			if cr.Contains(ev.X, ev.Y) {
-				h.arm(ctx, i+1, allPieces[i])
+				h.arm(ctx, i+1, h.game.mode, allPieces[i])
 				return nil
 			}
 		}
@@ -214,11 +273,36 @@ func (h *HomeScene) Update(ctx *Context) error {
 	return nil
 }
 
-func (h *HomeScene) arm(ctx *Context, slot int, pt chess.PieceType) {
+// pieceClip is the spoken name of a piece.
+func pieceClip(pt chess.PieceType) sfx.ClipID {
+	switch pt {
+	case chess.Pawn:
+		return sfx.ClipPawn
+	case chess.Knight:
+		return sfx.ClipKnight
+	case chess.Bishop:
+		return sfx.ClipBishop
+	case chess.Rook:
+		return sfx.ClipRook
+	case chess.Queen:
+		return sfx.ClipQueen
+	default:
+		return sfx.ClipKing
+	}
+}
+
+// arm presses a button and, once it has visibly squashed, starts the game.
+// slot is the button's place in the squash animation (-1 for none).
+func (h *HomeScene) arm(ctx *Context, slot int, mode Mode, pt chess.PieceType) {
 	ctx.SFX.Play(sfx.SndButton)
+	if slot > 0 {
+		// Tapping a card says its name, so he hears what he is looking at.
+		ctx.SFX.Say(pieceClip(pt))
+	}
 	h.pressed = slot
 	h.pressT = pressHold
 	h.pendPick = pt
+	h.pendMode = mode
 	h.pendPlay = true
 }
 
@@ -242,14 +326,38 @@ func (h *HomeScene) Draw(dst *ebiten.Image, ctx *Context) {
 	playText := render.FitTextSize("PLAY", ph*0.44, pw*0.44)
 	render.DrawTextShadowed(dst, "PLAY", px+pw/2, py+ph*0.52, playText, render.ColorText)
 
+	h.drawModes(dst, ctx, r)
+
+	label := "Pick a piece"
+	if len(activeModes) > 1 {
+		label = h.game.mode.info().name + " - pick a piece"
+	}
 	lcx, lcy := r.label.Center()
-	render.DrawTextShadowed(dst, "Pick a piece", lcx, lcy, m.BodySize*1.05, render.ColorTextDim)
+	render.DrawTextShadowed(dst, label, lcx, lcy, render.FitTextSize(label, m.BodySize*1.05, r.label.W*0.95), render.ColorTextDim)
 
 	for i, cr := range r.cards {
 		h.drawCard(dst, ctx, i, cr)
 	}
 
 	h.drawTray(dst, ctx, r.tray)
+}
+
+// drawModes draws one round button per game. The one picked for the piece cards
+// sits in a gold frame.
+func (h *HomeScene) drawModes(dst *ebiten.Image, ctx *Context, r homeRects) {
+	for i, mode := range activeModes {
+		tr := r.modes[i]
+		if tr.W <= 0 {
+			continue
+		}
+		if mode == h.game.mode && mode.info().needsPiece {
+			pad := tr.W * 0.08
+			render.FillRoundRect(dst, tr.X-pad, tr.Y-pad, tr.W+2*pad, tr.H+2*pad, tr.W*0.42+pad, render.ColorStarGlow)
+		}
+		render.DrawChunkyButton(dst, tr.X, tr.Y, tr.W, tr.H, render.ColorModeTile, render.ColorModeTileEdge, false)
+		cx, cy := tr.Center()
+		render.DrawEmoji(dst, mode.info().icon, cx, cy-tr.H*0.02, tr.W*0.58, 0, 1)
+	}
 }
 
 func (h *HomeScene) drawCard(dst *ebiten.Image, ctx *Context, i int, cr layout.Rect) {

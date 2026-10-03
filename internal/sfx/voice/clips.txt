@@ -1,0 +1,16 @@
+pawn|Pawn.
+knight|Knight.
+bishop|Bishop.
+rook|Rook.
+queen|Queen.
+king|King.
+yay|Yay! You did it!
+perfect|Perfect!
+oops|Oops. Try again!
+which|Who can reach the star?
+careful|Careful! Not there.
+white-turn|White's turn.
+black-turn|Black's turn.
+white-wins|White wins!
+black-wins|Black wins!
+great-job|Great job!

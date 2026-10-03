@@ -40,6 +40,11 @@ type Game struct {
 	screenW float64
 	screenH float64
 
+	// mode is the game picked on the home screen, for the piece cards to start.
+	// It lasts for the session, like the stickers, and is always a mode that
+	// needs a piece picked.
+	mode Mode
+
 	// stickers are every emoji reward collected this session; the home screen
 	// and the play footer both read it.
 	stickers []int

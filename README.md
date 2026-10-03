@@ -17,13 +17,35 @@ There is no way to lose. A wrong tap gives a soft wobble and nothing else, and
 if a wandering piece can no longer reach the star, the star quietly hops to a
 square it can reach.
 
+### Other games
+
+Once there is more than one game, a row of round buttons appears under **PLAY**.
+Tapping one picks the game the piece cards will start (it gets a gold frame);
+games that deal their own pieces start straight away.
+
+- **Which piece?** — two or three pieces and a star. Exactly one piece can reach
+  the star in a single move. Tap it and it hops over. A wrong pick shows what
+  that piece *can* do, says its name, then fades out of the running, so the
+  next guess is easier. Getting it right first time earns the "Perfect!" party.
+  The knight is never dealt in this game.
+
+### Voices
+
+Spoken clips (piece names, "Yay!", "Perfect!", "Oops. Try again!", ...) live in
+`internal/sfx/voice/`. What each one says is in `clips.txt`; `make voice`
+regenerates the `.wav` files from it with the Mac's built-in text-to-speech.
+Drop a better recording over any `.wav` and the app plays that instead. A
+missing clip is just silent.
+
 ### Knobs worth knowing
 
 | What | Where |
 |---|---|
 | Dark square colour | `render.ColorBoardD` in `internal/render/palette.go` |
 | How far the star can be planted | `maxJourney` in `internal/game/play.go` |
-| Stickers per celebration | `milestoneEvery` in `internal/game/play.go` |
+| Stickers per celebration | `milestoneEvery` in `internal/game/kit.go` |
+| Pieces dealt by the "own pieces" games | `beginnerPieces` in `internal/game/mode.go` |
+| How long a wrong "Which piece?" pick shows its moves | `whichShowDur` in `internal/game/which.go` |
 | The sticker set | drop more Twemoji SVGs into `internal/render/assets/emoji/` |
 
 ## Play on your Mac (desktop)
@@ -75,6 +97,7 @@ That installs and opens the app. Rebuild anytime with `make apk` then `make inst
 ```bash
 make test          # unit tests
 make shots         # render PNG screenshots at Edge 50 Neo metrics into shots/
+make voice         # regenerate the spoken clips (macOS text-to-speech)
 make bind          # rebuild native Android library (slow, first time ~minutes)
 make apk           # build debug APK (local dev)
 make apk-release   # build release APK (unsigned locally unless KEYSTORE_* env set)

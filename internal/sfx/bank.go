@@ -21,6 +21,10 @@ const (
 type Bank struct {
 	ctx     *audio.Context
 	players map[ID]*audio.Player
+
+	// clips are the spoken lines; speaking is the one currently playing.
+	clips    map[ClipID]*audio.Player
+	speaking *audio.Player
 }
 
 func NewBank() *Bank {
@@ -41,6 +45,7 @@ func NewBank() *Bank {
 		{Freq: 880, Duration: 0.12, Amplitude: 0.09, Wave: WaveTriangle, StartDelay: 0.09},
 	})
 	b.load(SndMilestone, milestoneVoices())
+	b.loadClips()
 	return b
 }
 
