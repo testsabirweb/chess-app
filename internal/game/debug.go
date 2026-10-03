@@ -86,8 +86,14 @@ func (g *Game) PlayInfo() (PlayInfo, bool) {
 	if !ok {
 		return PlayInfo{}, false
 	}
+	// Target is the first star still to collect; once none are left, the square
+	// the piece is standing on.
+	target := ps.at
+	if len(ps.targets) > 0 {
+		target = ps.targets[0]
+	}
 	return PlayInfo{
-		Piece: ps.at, Target: ps.target, Hints: ps.solutions, Board: ps.board,
+		Piece: ps.at, Target: target, Hints: ps.solutions, Board: ps.board,
 		Selected: ps.pieceSelected,
 	}, true
 }

@@ -37,7 +37,7 @@ func (m Mode) info() modeInfo { return modeTable[m] }
 // activeModes are the modes that can be played, in order. A mode is added here
 // in the same change that makes it playable, so there is never a button that
 // does nothing.
-var activeModes = []Mode{ModeStar, ModeWhich}
+var activeModes = []Mode{ModeStar, ModeWhich, ModeTreasure}
 
 // rowModes are the modes that get a button on the home screen. The star game
 // has none: it is what the piece cards already play, so a button for it would
@@ -65,6 +65,8 @@ func newModeScene(g *Game, mode Mode, pt chess.PieceType) Scene {
 	switch mode {
 	case ModeWhich:
 		return NewWhichScene(g)
+	case ModeTreasure:
+		return NewTreasureScene(g, pt)
 	default:
 		return NewPlayScene(g, pt)
 	}

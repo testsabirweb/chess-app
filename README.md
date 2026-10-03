@@ -25,6 +25,11 @@ their own pieces start when tapped; games that need a piece are picked first (th
 button gets a gold frame) and started by a piece card. Tap the button again to
 go back to the star game.
 
+- **Collect the stars** (the gem button) — two stars at first, three after a few
+  rounds, collected in any order. Each pop is a small celebration; the last one
+  wins the sticker. Picking the quickest route through all of them earns the
+  "Perfect!" party. If the piece wanders so a star can't be reached any more, that
+  star hops somewhere it can. Pick it, then choose a piece card to start.
 - **Which piece?** — two or three pieces and a star. Exactly one piece can reach
   the star in a single move. Tap it to pick it up, then tap the star to move it
   there yourself. A wrong pick shows what

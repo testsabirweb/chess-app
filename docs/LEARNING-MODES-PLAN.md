@@ -2,8 +2,10 @@
 
 ## Status
 
-Phases 0, 2 and 3 are implemented (shared round kit, mode row, "Which piece?"). Phases 4–7 are
-still to do.
+Phases 0, 2, 3 and 4 are implemented (shared round kit, mode row, "Which piece?", "Collect the
+stars"). Phases 5–7 are still to do. Phase 4 added `challenge.Puzzle`, `Tour` and `NewTreasure`
+(`internal/challenge/tour.go`); `PlayScene` now takes a `next func() challenge.Puzzle`, so Catch the
+pawns and Stay safe only need a new puzzle source plus their own rules.
 
 **Phase 1 (voice clips) was built and then removed** at the parent's request; the app is back to
 sound effects only. Ignore every mention of voice clips, `Say`, `ClipID`, `oops` rate limiting and

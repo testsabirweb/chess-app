@@ -47,16 +47,19 @@ type movePath struct {
 }
 
 type PlayScene struct {
-	game      *Game
-	gen       *challenge.Generator
-	cur       challenge.Challenge
+	game *Game
+	// next deals the following puzzle. The star game deals one target and the
+	// treasure game several, through the same scene.
+	next      func() challenge.Puzzle
+	cur       challenge.Puzzle
 	pieceType chess.PieceType
 
 	// Live state of the current puzzle. The piece really moves across `board`,
 	// so sliders, captures and blocked paths all stay correct move after move.
-	board     *chess.Board
-	at        chess.Square
-	target    chess.Square
+	board *chess.Board
+	at    chess.Square
+	// targets are the stars still to collect, in the order they were dealt.
+	targets   []chess.Square
 	solutions []chess.Square
 	steps     int
 
@@ -92,7 +95,9 @@ type PlayScene struct {
 	toX, toY       float64
 	moveTo         chess.Square
 	starScale      float64
-	starPopT       float64
+	// starPopT times the last star's flash as it is collected, at popSq.
+	starPopT float64
+	popSq    chess.Square
 
 	wobbleSq  chess.Square
 	wobbleT   float64
@@ -101,6 +106,8 @@ type PlayScene struct {
 	hintBuf []render.Hint
 }
 
+// NewPlayScene is the star game: one star to find, with the piece the child
+// picked.
 func NewPlayScene(g *Game, pt chess.PieceType) *PlayScene {
 	spec := challenge.Spec{
 		BoardWidth: 5, BoardHeight: 5,
@@ -110,10 +117,42 @@ func NewPlayScene(g *Game, pt chess.PieceType) *PlayScene {
 		MaxMoves: maxJourney,
 		Decoys:   pt == chess.Pawn,
 	}
+	gen := challenge.NewGenerator(spec, g.ctx.Rand)
+	return newPlayScene(g, pt, func() challenge.Puzzle {
+		c := gen.Next()
+		return challenge.Puzzle{
+			Board: c.Board, From: c.From, Piece: c.Piece,
+			Targets: []chess.Square{c.Target}, Optimal: c.Moves,
+		}
+	})
+}
+
+// treasureEasyRounds is how many rounds of the treasure game have two stars
+// before it goes to three.
+const treasureEasyRounds = 3
+
+// NewTreasureScene is the collect-the-stars game: several stars on the board,
+// collected in any order.
+func NewTreasureScene(g *Game, pt chess.PieceType) *PlayScene {
+	round := 0
+	last := chess.Square{File: 255, Rank: 255} // matches no square
+	return newPlayScene(g, pt, func() challenge.Puzzle {
+		k := 3
+		if round < treasureEasyRounds {
+			k = 2
+		}
+		round++
+		p := challenge.NewTreasure(g.ctx.Rand, pt, chess.White, k, last)
+		last = p.From
+		return p
+	})
+}
+
+func newPlayScene(g *Game, pt chess.PieceType, next func() challenge.Puzzle) *PlayScene {
 	ps := &PlayScene{
 		game:      g,
 		kit:       newRoundKit(g),
-		gen:       challenge.NewGenerator(spec, g.ctx.Rand),
+		next:      next,
 		pieceType: pt,
 		starPulse: anim.Pulse{Period: 1.6},
 		moveTween: anim.Tween{Duration: 0.42, Ease: anim.EaseInOutCubic},
@@ -123,13 +162,13 @@ func NewPlayScene(g *Game, pt chess.PieceType) *PlayScene {
 }
 
 func (p *PlayScene) newChallenge() {
-	p.cur = p.gen.Next()
+	p.cur = p.next()
 	p.board = p.cur.Board.Clone()
 	p.at = p.cur.From
-	p.target = p.cur.Target
+	p.targets = append(p.targets[:0], p.cur.Targets...)
 	p.solutions = p.board.MoveTargets(p.at)
 	p.steps = 0
-	p.optimal = p.cur.Moves
+	p.optimal = p.cur.Optimal
 	p.pieceSelected = false
 	p.hintT = 0
 	p.laidOut = false
@@ -255,11 +294,13 @@ func (p *PlayScene) handleTap(ctx *Context, x, y float64, m layout.Metrics) {
 		return
 	}
 
-	// A generous magnet around the star, but only when the star is one move
+	// A generous magnet around a star, but only when that star is one move
 	// away - otherwise the child would jump a step they have not earned.
-	if containsSquare(p.solutions, p.target) && m.HitStar(x, y, p.target, p.solutions) {
-		p.startMove(p.target, m)
-		return
+	for _, t := range p.targets {
+		if containsSquare(p.solutions, t) && m.HitStar(x, y, t, p.solutions) {
+			p.startMove(t, m)
+			return
+		}
 	}
 	if containsSquare(p.solutions, sq) {
 		p.startMove(sq, m)
@@ -362,16 +403,23 @@ func (p *PlayScene) land(ctx *Context, m layout.Metrics) {
 	p.steps++
 	p.syncPiecePos(m)
 
-	if p.at == p.target {
-		// The hop is over. Leaving the state at stateMoving would have the next
-		// frame find the finished tween and land all over again, collecting the
-		// same star every frame; the kit's busy flag keeps the board quiet now.
-		p.state = stateIdle
-		p.collectStar(ctx, m)
-		return
-	}
-
-	if captured {
+	if i := indexOfSquare(p.targets, p.at); i >= 0 {
+		p.targets = append(p.targets[:i], p.targets[i+1:]...)
+		if len(p.targets) == 0 {
+			// The hop is over. Leaving the state at stateMoving would have the
+			// next frame find the finished tween and land all over again,
+			// collecting the same star every frame; the kit's busy flag keeps
+			// the board quiet now.
+			p.state = stateIdle
+			p.collectStar(ctx, m)
+			return
+		}
+		// One star of several: a small pop, and play on.
+		ctx.SFX.Play(sfx.SndPop)
+		cr := m.CellRect(int(p.at.File), int(p.at.Rank))
+		cx, cy := cr.Center()
+		p.kit.confetti.Burst(ctx.Rand, cx, cy, 14, m.Cell)
+	} else if captured {
 		ctx.SFX.Play(sfx.SndPop)
 	} else {
 		ctx.SFX.Play(sfx.SndStep)
@@ -384,37 +432,62 @@ func (p *PlayScene) land(ctx *Context, m layout.Metrics) {
 	p.hintT = 0
 	p.state = stateIdle
 
-	if !challenge.CanReach(p.board, p.at, p.target, maxJourney+2) {
-		p.relocateStar(ctx)
+	p.keepStarsReachable(ctx)
+}
+
+// keepStarsReachable moves any star the piece can no longer get to somewhere it
+// can. It is the safety net for a wandering toddler: the game never becomes
+// unwinnable and never scolds, the star just twinkles somewhere new.
+func (p *PlayScene) keepStarsReachable(ctx *Context) {
+	moved := false
+	for i, t := range p.targets {
+		if challenge.CanReach(p.board, p.at, t, maxJourney+2) {
+			continue
+		}
+		if !p.relocateStar(ctx, i) {
+			// The piece is completely stuck (a pawn on the far rank); start over.
+			p.kit.restart()
+			return
+		}
+		moved = true
+	}
+	if !moved {
+		return
+	}
+	ctx.SFX.Play(sfx.SndHop)
+	// The moves already spent still count, so a wandering journey can no longer
+	// come out "perfect" - but it is never scored as a failure either. If no
+	// shortest route can be worked out, "perfect" is simply off the table.
+	p.optimal = 0
+	if left, ok := challenge.Tour(p.board, p.at, p.targets, maxJourney); ok {
+		p.optimal = p.steps + left
 	}
 }
 
-// relocateStar hops the star somewhere the piece can still get to. It is the
-// safety net for a wandering toddler: the game never becomes unwinnable and
-// never scolds, the star just twinkles somewhere new.
-func (p *PlayScene) relocateStar(ctx *Context) {
+// relocateStar moves star i to a square the piece can reach, preferring one a
+// couple of moves away and never one that is already taken. It reports false
+// when the piece has nowhere to go.
+func (p *PlayScene) relocateStar(ctx *Context, i int) bool {
 	steps := challenge.Reach(p.board, p.at, maxJourney)
-	if len(steps) == 0 {
-		// The piece is completely stuck (a pawn on the far rank); start over.
-		p.kit.restart()
-		return
-	}
-	far := steps[:0:0]
+	var open, far []challenge.Step
 	for _, s := range steps {
+		if !p.board.At(s.Square).IsEmpty() || indexOfSquare(p.targets, s.Square) >= 0 {
+			continue
+		}
+		open = append(open, s)
 		if s.Moves >= 2 {
 			far = append(far, s)
 		}
 	}
-	pool := steps
+	pool := open
 	if len(far) > 0 {
 		pool = far
 	}
-	pick := pool[ctx.Rand.IntN(len(pool))]
-	p.target = pick.Square
-	// The moves already spent still count, so a wandering journey can no longer
-	// come out "perfect" - but it is never scored as a failure either.
-	p.optimal = p.steps + pick.Moves
-	ctx.SFX.Play(sfx.SndHop)
+	if len(pool) == 0 {
+		return false
+	}
+	p.targets[i] = pool[ctx.Rand.IntN(len(pool))].Square
+	return true
 }
 
 func (p *PlayScene) collectStar(ctx *Context, m layout.Metrics) {
@@ -431,9 +504,10 @@ func (p *PlayScene) collectStar(ctx *Context, m layout.Metrics) {
 		ctx.SFX.Play(sfx.SndMilestone)
 	}
 
-	cr := m.CellRect(int(p.target.File), int(p.target.Rank))
+	cr := m.CellRect(int(p.at.File), int(p.at.Rank))
 	cx, cy := cr.Center()
 	p.kit.win(ctx, m, cx, cy, perfect)
+	p.popSq = p.at
 	p.starPopT = 0.3
 	p.pieceSelected = false
 }
@@ -461,9 +535,7 @@ func (p *PlayScene) Draw(dst *ebiten.Image, ctx *Context) {
 		render.DrawSquareTint(dst, m, p.wobbleSq, 0, 0, render.Alpha(render.ColorShadow, 0.5))
 	}
 
-	if !p.kit.celebrating() || p.starPopT > 0 {
-		p.drawStar(dst, ctx, m)
-	}
+	p.drawStars(dst, ctx, m)
 
 	// Every other piece on the board (pawn decoys).
 	for _, sq := range p.board.Occupied() {
@@ -496,20 +568,22 @@ func (p *PlayScene) hints() []render.Hint {
 		p.hintBuf = append(p.hintBuf, render.Hint{
 			Square:  sq,
 			Capture: !p.board.At(sq).IsEmpty(),
-			Target:  sq == p.target,
+			Target:  indexOfSquare(p.targets, sq) >= 0,
 		})
 	}
 	return p.hintBuf
 }
 
-func (p *PlayScene) drawStar(dst *ebiten.Image, ctx *Context, m layout.Metrics) {
-	scale := p.starScale
-	if p.starPopT > 0 {
-		// Collected: the star flashes bigger and fades out.
-		t := 1 - p.starPopT/0.3
-		scale = p.starScale * (1 + t*1.4)
+// drawStars draws every star still on the board, and the last one flashing
+// bigger and fading as it is collected.
+func (p *PlayScene) drawStars(dst *ebiten.Image, ctx *Context, m layout.Metrics) {
+	for _, t := range p.targets {
+		render.DrawStar(dst, t, m, p.starScale, ctx.T)
 	}
-	render.DrawStar(dst, p.target, m, scale, ctx.T)
+	if p.starPopT > 0 {
+		t := 1 - p.starPopT/0.3
+		render.DrawStar(dst, p.popSq, m, p.starScale*(1+t*1.4), ctx.T)
+	}
 }
 
 func (p *PlayScene) drawPiece(dst *ebiten.Image, m layout.Metrics) {
@@ -557,4 +631,14 @@ func containsSquare(list []chess.Square, sq chess.Square) bool {
 		}
 	}
 	return false
+}
+
+// indexOfSquare finds sq in list, or -1.
+func indexOfSquare(list []chess.Square, sq chess.Square) int {
+	for i, s := range list {
+		if s == sq {
+			return i
+		}
+	}
+	return -1
 }

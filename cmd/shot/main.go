@@ -217,6 +217,19 @@ func main() {
 			{frame: 200, shot: "06-reward-pop"},
 			{frame: 225, shot: "07-reward-fly"},
 		}
+	} else if *scene == "play" && *mode == "treasure" {
+		g = game.NewInMode(game.ModeTreasure, pieceByName(*piece))
+		g.SetHintDelay(*hintDelay)
+		g.SeedStickers(*seed)
+		// Walk towards whichever star is first in line, hop after hop, with a
+		// shot in between to catch each star being collected.
+		steps = []step{{frame: 30, shot: "01-idle"}}
+		for i := 0; i < 8; i++ {
+			steps = append(steps,
+				step{frame: 60 + 45*i, do: tapTowardStar},
+				step{frame: 60 + 45*i + 35, shot: fmt.Sprintf("%02d-hop", i+2)},
+			)
+		}
 	} else if *scene == "play" {
 		g = game.NewInPlay(pieceByName(*piece))
 		// The pause before the hints is off by default: these shots are for
