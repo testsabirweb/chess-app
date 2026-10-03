@@ -61,8 +61,19 @@ type PlayScene struct {
 	// targets are the stars still to collect, in the order they were dealt.
 	// When capture is set they are black pawns standing on the board instead of
 	// stars, and landing on one takes it.
-	targets   []chess.Square
-	capture   bool
+	targets []chess.Square
+	capture bool
+
+	// The Stay-safe game: a guard that never moves, and the squares it attacks,
+	// where the piece may not stop. avoid is nil in every other game.
+	safe      bool
+	guard     chess.Square
+	hot       []chess.Square
+	avoid     func(chess.Square) bool
+	safeRound int
+	flashT    float64 // the red squares flash after a refused move
+	lungeT    float64 // the guard lunges at the square that was tapped
+	lungeTo   chess.Square
 	solutions []chess.Square
 	steps     int
 
@@ -121,6 +132,7 @@ func NewPlayScene(g *Game, pt chess.PieceType) *PlayScene {
 		Decoys:   pt == chess.Pawn,
 	}
 	gen := challenge.NewGenerator(spec, g.ctx.Rand)
+	gen.SetMemory(&g.recent)
 	return newPlayScene(g, pt, func() challenge.Puzzle {
 		c := gen.Next()
 		return challenge.Puzzle{
@@ -135,41 +147,62 @@ func NewPlayScene(g *Game, pt chess.PieceType) *PlayScene {
 const multiEasyRounds = 3
 
 // multiSource deals rounds from a generator that takes the target count and the
-// previous round's start square, so the piece does not begin where it just was.
-func multiSource(g *Game, deal func(k int, avoid chess.Square) challenge.Puzzle) func() challenge.Puzzle {
+// memory of recent squares, so a round does not look like the last ones.
+func multiSource(g *Game, deal func(k int, mem *challenge.Memory) challenge.Puzzle) func() challenge.Puzzle {
 	round := 0
-	last := chess.Square{File: 255, Rank: 255} // matches no square
 	return func() challenge.Puzzle {
 		k := 3
 		if round < multiEasyRounds {
 			k = 2
 		}
 		round++
-		p := deal(k, last)
-		last = p.From
-		return p
+		return deal(k, &g.recent)
 	}
 }
 
 // NewTreasureScene is the collect-the-stars game: several stars on the board,
 // collected in any order.
 func NewTreasureScene(g *Game, pt chess.PieceType) *PlayScene {
-	return newPlayScene(g, pt, multiSource(g, func(k int, avoid chess.Square) challenge.Puzzle {
-		return challenge.NewTreasure(g.ctx.Rand, pt, chess.White, k, avoid)
+	return newPlayScene(g, pt, multiSource(g, func(k int, mem *challenge.Memory) challenge.Puzzle {
+		return challenge.NewTreasure(g.ctx.Rand, pt, chess.White, k, mem)
 	}))
 }
 
 // NewCatchScene is the catch-the-pawns game: black pawns stand still on the
 // board and the child takes them all, in any order.
 func NewCatchScene(g *Game, pt chess.PieceType) *PlayScene {
-	ps := newPlayScene(g, pt, multiSource(g, func(k int, avoid chess.Square) challenge.Puzzle {
-		return challenge.NewCatch(g.ctx.Rand, pt, chess.White, k, avoid)
-	}))
-	ps.capture = true
-	return ps
+	return newPlayScene(g, pt, multiSource(g, func(k int, mem *challenge.Memory) challenge.Puzzle {
+		return challenge.NewCatch(g.ctx.Rand, pt, chess.White, k, mem)
+	}), func(p *PlayScene) { p.capture = true })
 }
 
-func newPlayScene(g *Game, pt chess.PieceType, next func() challenge.Puzzle) *PlayScene {
+// safeTeachRounds is how many rounds of Stay safe keep the red squares on show
+// the whole time. After that they only appear with the move dots, once the
+// pause is over, so he starts spotting the danger himself before it is drawn.
+const safeTeachRounds = 5
+
+// Timings for a refused move.
+const (
+	safeFlashDur = 1.2
+	safeLungeDur = 0.35
+)
+
+// NewSafeScene is the stay-safe game: find the star without stopping on a
+// square a guard attacks. The guard never moves and is never captured.
+func NewSafeScene(g *Game, pt chess.PieceType) *PlayScene {
+	round := 0
+	return newPlayScene(g, pt, func() challenge.Puzzle {
+		// Every other round asks for a detour: the safe way round is longer.
+		detour := round%2 == 1
+		round++
+		return challenge.NewSafe(g.ctx.Rand, pt, chess.White, beginnerPieces, &g.recent, detour)
+	}, func(p *PlayScene) { p.safe = true })
+}
+
+// A playOption sets up a scene before its first puzzle is dealt.
+type playOption func(*PlayScene)
+
+func newPlayScene(g *Game, pt chess.PieceType, next func() challenge.Puzzle, opts ...playOption) *PlayScene {
 	ps := &PlayScene{
 		game:      g,
 		kit:       newRoundKit(g),
@@ -178,12 +211,20 @@ func newPlayScene(g *Game, pt chess.PieceType, next func() challenge.Puzzle) *Pl
 		starPulse: anim.Pulse{Period: 1.6},
 		moveTween: anim.Tween{Duration: 0.42, Ease: anim.EaseInOutCubic},
 	}
+	for _, o := range opts {
+		o(ps)
+	}
 	ps.newChallenge()
 	return ps
 }
 
 func (p *PlayScene) newChallenge() {
 	p.cur = p.next()
+	if p.safe {
+		p.guard, p.hot = p.cur.Guard, p.cur.Hot
+		p.avoid = challenge.HotSet(p.hot, p.guard)
+		p.safeRound++
+	}
 	p.board = p.cur.Board.Clone()
 	p.at = p.cur.From
 	p.targets = append(p.targets[:0], p.cur.Targets...)
@@ -213,6 +254,12 @@ func (p *PlayScene) Update(ctx *Context) error {
 	}
 	if p.wobbleT > 0 {
 		p.wobbleT -= ctx.DT
+	}
+	if p.flashT > 0 {
+		p.flashT -= ctx.DT
+	}
+	if p.lungeT > 0 {
+		p.lungeT -= ctx.DT
 	}
 	if p.hintT > 0 {
 		p.hintT -= ctx.DT
@@ -324,10 +371,24 @@ func (p *PlayScene) handleTap(ctx *Context, x, y float64, m layout.Metrics) {
 		}
 	}
 	if containsSquare(p.solutions, sq) {
+		if p.avoid != nil && p.avoid(sq) {
+			p.refuse(ctx, sq, m)
+			return
+		}
 		p.startMove(sq, m)
 		return
 	}
 	p.oops(ctx, sq, m)
+}
+
+// refuse turns down a move onto a square the guard attacks: the guard lunges at
+// it, the red squares flash, and the piece stays put. Nothing is lost - it is
+// the same soft wobble as any other wrong tap, with the reason made visible.
+func (p *PlayScene) refuse(ctx *Context, sq chess.Square, m layout.Metrics) {
+	p.oops(ctx, sq, m)
+	p.flashT = safeFlashDur
+	p.lungeT = safeLungeDur
+	p.lungeTo = sq
 }
 
 // pickUp holds the piece and starts the pause before its moves are shown.
@@ -462,7 +523,7 @@ func (p *PlayScene) land(ctx *Context, m layout.Metrics) {
 func (p *PlayScene) keepStarsReachable(ctx *Context) {
 	moved := false
 	for i, t := range p.targets {
-		if challenge.CanReach(p.board, p.at, t, maxJourney+2) {
+		if challenge.CanReachAvoiding(p.board, p.at, t, maxJourney+2, p.avoid) {
 			continue
 		}
 		if !p.relocateStar(ctx, i) {
@@ -480,7 +541,7 @@ func (p *PlayScene) keepStarsReachable(ctx *Context) {
 	// come out "perfect" - but it is never scored as a failure either. If no
 	// shortest route can be worked out, "perfect" is simply off the table.
 	p.optimal = 0
-	if left, ok := challenge.Tour(p.board, p.at, p.targets, maxJourney); ok {
+	if left, ok := challenge.TourAvoiding(p.board, p.at, p.targets, maxJourney, p.avoid); ok {
 		p.optimal = p.steps + left
 	}
 }
@@ -493,7 +554,7 @@ func (p *PlayScene) relocateStar(ctx *Context, i int) bool {
 	if p.capture {
 		open = p.takeableSquares(i)
 	} else {
-		for _, s := range challenge.Reach(p.board, p.at, maxJourney) {
+		for _, s := range challenge.ReachAvoiding(p.board, p.at, maxJourney, p.avoid) {
 			if !p.board.At(s.Square).IsEmpty() || indexOfSquare(p.targets, s.Square) >= 0 {
 				continue
 			}
@@ -590,6 +651,10 @@ func (p *PlayScene) Draw(dst *ebiten.Image, ctx *Context) {
 	p.kit.drawHeader(dst, m, render.PieceName(p.pieceType))
 	render.DrawBoard(dst, m)
 
+	if p.safe {
+		render.DrawDangerTint(dst, m, p.hot, p.dangerStrength())
+	}
+
 	// Hints and the pick-me halo.
 	if p.idle() {
 		if p.pieceSelected {
@@ -612,6 +677,9 @@ func (p *PlayScene) Draw(dst *ebiten.Image, ctx *Context) {
 			continue
 		}
 		cr := m.CellRect(int(sq.File), int(sq.Rank))
+		if p.safe && sq == p.guard && p.lungeT > 0 {
+			cr = p.lunged(cr, m)
+		}
 		render.DrawPiece(dst, p.board.At(sq), cr, 0, true)
 	}
 
@@ -621,6 +689,37 @@ func (p *PlayScene) Draw(dst *ebiten.Image, ctx *Context) {
 
 	p.drawPiece(dst, m)
 	p.kit.drawOverlays(dst, ctx, m)
+}
+
+// dangerStrength is how strongly the red squares are showing. For the first few
+// rounds they are always there; after that they come with the move dots, and
+// they flash up whenever a move onto one has just been refused.
+func (p *PlayScene) dangerStrength() float64 {
+	s := 0.0
+	if p.safeRound <= safeTeachRounds {
+		s = 1
+	} else {
+		s = p.hintFade()
+	}
+	if p.flashT > 0 {
+		pulse := 0.75 + 0.25*math.Sin(p.flashT*18)
+		if pulse > s {
+			s = pulse
+		}
+	}
+	return s
+}
+
+// lunged shifts the guard's rectangle towards the square it is lunging at.
+func (p *PlayScene) lunged(cr layout.Rect, m layout.Metrics) layout.Rect {
+	to := m.CellRect(int(p.lungeTo.File), int(p.lungeTo.Rank))
+	dx, dy := to.X-cr.X, to.Y-cr.Y
+	if d := math.Hypot(dx, dy); d > 0 {
+		k := math.Sin(math.Pi*(1-p.lungeT/safeLungeDur)) * m.Cell * 0.22 / d
+		cr.X += dx * k
+		cr.Y += dy * k
+	}
+	return cr
 }
 
 // idle is true while the board is waiting for a tap: no hop in flight and no
@@ -634,6 +733,9 @@ func (p *PlayScene) idle() bool {
 func (p *PlayScene) hints() []render.Hint {
 	p.hintBuf = p.hintBuf[:0]
 	for _, sq := range p.solutions {
+		if p.safe && sq == p.guard {
+			continue // the guard cannot be taken, so it is not offered
+		}
 		p.hintBuf = append(p.hintBuf, render.Hint{
 			Square:  sq,
 			Capture: !p.board.At(sq).IsEmpty(),

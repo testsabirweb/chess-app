@@ -35,6 +35,12 @@ go back to the star game.
   lines open up for the next. The same quickest-route "Perfect!" applies, and a
   pawn the piece can no longer capture is picked up and set down somewhere it
   can. Pick it, then choose a piece card to start.
+- **Stay safe** (the shield button) — the star game with a black guard that never
+  moves. The squares it attacks are tinted soft red, and the piece must not stop on
+  one (it may pass through). Tapping a red square is refused: the guard lunges at
+  it and the red squares flash. For the first five rounds the red is always shown;
+  after that it only appears with the move dots, so he learns to spot the danger
+  himself. Every other round needs a detour. Pick it, then choose a piece card.
 - **Which piece?** — two or three pieces and a star. Exactly one piece can reach
   the star in a single move. Tap it to pick it up, then tap the star to move it
   there yourself. A wrong pick shows what
@@ -50,6 +56,9 @@ go back to the star game.
 | How far the star can be planted | `maxJourney` in `internal/game/play.go` |
 | Stickers per celebration | `milestoneEvery` in `internal/game/kit.go` |
 | Pieces dealt by the "own pieces" games | `beginnerPieces` in `internal/game/mode.go` |
+| Rounds the Stay-safe warning is always shown | `safeTeachRounds` in `internal/game/play.go` |
+| Memory the sticker/emoji image cache may use | `emojiCacheBudget` in `internal/render/emoji.go` |
+| How many recent rounds avoid repeating squares | `memoryRounds` in `internal/challenge/memory.go` |
 | How long a wrong "Which piece?" pick shows its moves | `whichShowDur` in `internal/game/which.go` |
 | The sticker set | drop more Twemoji SVGs into `internal/render/assets/emoji/` |
 

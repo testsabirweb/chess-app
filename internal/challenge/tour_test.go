@@ -93,7 +93,7 @@ func TestTreasureIsAlwaysSolvable(t *testing.T) {
 		rng := rand.New(rand.NewPCG(seed, 11))
 		for _, pt := range allTypes {
 			for k := 2; k <= 3; k++ {
-				checkTreasure(t, NewTreasure(rng, pt, chess.White, k, chess.Sq(0, 0)), k, pt)
+				checkTreasure(t, NewTreasure(rng, pt, chess.White, k, nil), k, pt)
 			}
 		}
 	}
@@ -106,7 +106,7 @@ func TestTreasureUsuallyHasAllTheStars(t *testing.T) {
 	for _, pt := range []chess.PieceType{chess.Knight, chess.Bishop, chess.Rook, chess.Queen, chess.King} {
 		full := 0
 		for i := 0; i < 50; i++ {
-			if len(NewTreasure(rng, pt, chess.White, 3, chess.Sq(0, 0)).Targets) == 3 {
+			if len(NewTreasure(rng, pt, chess.White, 3, nil).Targets) == 3 {
 				full++
 			}
 		}
@@ -116,22 +116,33 @@ func TestTreasureUsuallyHasAllTheStars(t *testing.T) {
 	}
 }
 
-func TestTreasureAvoidsTheLastStart(t *testing.T) {
+// Squares a recent round used should not come straight back as a start or a
+// star.
+func TestTreasureAvoidsRecentSquares(t *testing.T) {
 	rng := rand.New(rand.NewPCG(7, 8))
-	same := 0
-	for i := 0; i < 200; i++ {
-		if NewTreasure(rng, chess.Queen, chess.White, 2, chess.Sq(2, 2)).From == chess.Sq(2, 2) {
-			same++
+	var mem Memory
+	reused, rounds := 0, 300
+	var last []chess.Square
+	for i := 0; i < rounds; i++ {
+		p := NewTreasure(rng, chess.Queen, chess.White, 2, &mem)
+		now := append([]chess.Square{p.From}, p.Targets...)
+		for _, s := range now {
+			for _, o := range last {
+				if s == o {
+					reused++
+				}
+			}
 		}
+		last = now
 	}
-	if same > 0 {
-		t.Fatalf("started on the avoided square %d/200 times", same)
+	if reused > rounds/20 {
+		t.Fatalf("%d squares reused from the previous round over %d rounds", reused, rounds)
 	}
 }
 
 func TestTreasureDeterministicForSeed(t *testing.T) {
-	a := NewTreasure(rand.New(rand.NewPCG(5, 5)), chess.Bishop, chess.White, 3, chess.Sq(0, 0))
-	b := NewTreasure(rand.New(rand.NewPCG(5, 5)), chess.Bishop, chess.White, 3, chess.Sq(0, 0))
+	a := NewTreasure(rand.New(rand.NewPCG(5, 5)), chess.Bishop, chess.White, 3, nil)
+	b := NewTreasure(rand.New(rand.NewPCG(5, 5)), chess.Bishop, chess.White, 3, nil)
 	if a.From != b.From || a.Optimal != b.Optimal || len(a.Targets) != len(b.Targets) {
 		t.Fatal("same seed, different puzzle")
 	}
@@ -176,7 +187,7 @@ func TestCatchIsAlwaysSolvable(t *testing.T) {
 		rng := rand.New(rand.NewPCG(seed, 13))
 		for _, pt := range allTypes {
 			for k := 2; k <= 3; k++ {
-				checkCatch(t, NewCatch(rng, pt, chess.White, k, chess.Sq(0, 0)), k, pt)
+				checkCatch(t, NewCatch(rng, pt, chess.White, k, nil), k, pt)
 			}
 		}
 	}
@@ -187,7 +198,7 @@ func TestCatchUsuallyHasAllThePawns(t *testing.T) {
 	for _, pt := range []chess.PieceType{chess.Knight, chess.Bishop, chess.Rook, chess.Queen, chess.King} {
 		full := 0
 		for i := 0; i < 50; i++ {
-			if len(NewCatch(rng, pt, chess.White, 3, chess.Sq(0, 0)).Targets) == 3 {
+			if len(NewCatch(rng, pt, chess.White, 3, nil).Targets) == 3 {
 				full++
 			}
 		}
@@ -198,8 +209,8 @@ func TestCatchUsuallyHasAllThePawns(t *testing.T) {
 }
 
 func TestCatchDeterministicForSeed(t *testing.T) {
-	a := NewCatch(rand.New(rand.NewPCG(8, 8)), chess.Rook, chess.White, 3, chess.Sq(0, 0))
-	b := NewCatch(rand.New(rand.NewPCG(8, 8)), chess.Rook, chess.White, 3, chess.Sq(0, 0))
+	a := NewCatch(rand.New(rand.NewPCG(8, 8)), chess.Rook, chess.White, 3, nil)
+	b := NewCatch(rand.New(rand.NewPCG(8, 8)), chess.Rook, chess.White, 3, nil)
 	if a.From != b.From || a.Optimal != b.Optimal || len(a.Targets) != len(b.Targets) {
 		t.Fatal("same seed, different puzzle")
 	}

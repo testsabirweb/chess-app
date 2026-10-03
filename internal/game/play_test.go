@@ -86,7 +86,7 @@ func TestTreasureNeedsEveryStar(t *testing.T) {
 	served := false
 	p := newPlayScene(g, chess.Rook, func() challenge.Puzzle {
 		if served {
-			return challenge.NewTreasure(g.ctx.Rand, chess.Rook, chess.White, 2, chess.Sq(9, 9))
+			return challenge.NewTreasure(g.ctx.Rand, chess.Rook, chess.White, 2, nil)
 		}
 		served = true
 		return fixedPuzzle()
@@ -271,15 +271,19 @@ func settle(t *testing.T, g *Game, p *PlayScene) {
 // can still be reached.
 func TestMultiTargetRandomPlayStaysConsistent(t *testing.T) {
 	types := []chess.PieceType{chess.Pawn, chess.Knight, chess.Bishop, chess.Rook, chess.Queen, chess.King}
-	for _, capture := range []bool{false, true} {
+	for _, mode := range []string{"treasure", "catch", "safe"} {
+		capture := mode == "catch"
 		for _, pt := range types {
 			g := testGame()
 			g.ctx.M = layout.Compute(1080, 2400, 2.75, layout.Insets{}, 5, 5)
 			g.ctx.DT = 1.0 / 60
 			var p *PlayScene
-			if capture {
+			switch mode {
+			case "catch":
 				p = NewCatchScene(g, pt)
-			} else {
+			case "safe":
+				p = NewSafeScene(g, pt)
+			default:
 				p = NewTreasureScene(g, pt)
 			}
 			rng := rand.New(rand.NewPCG(uint64(pt), 99))
@@ -294,25 +298,111 @@ func TestMultiTargetRandomPlayStaysConsistent(t *testing.T) {
 				if capture {
 					want += len(p.targets)
 				}
+				if p.safe {
+					want++ // the guard
+					if p.avoid(p.at) {
+						t.Fatalf("%v move %d: the piece is standing on a guarded square %v", pt, move, p.at)
+					}
+					if g := p.board.At(p.guard); g.IsEmpty() || g.Color != chess.Black {
+						t.Fatalf("%v move %d: the guard is gone from %v", pt, move, p.guard)
+					}
+				}
 				if pieces != want {
-					t.Fatalf("capture=%v %v move %d: %d pieces on the board, want %d", capture, pt, move, pieces, want)
+					t.Fatalf("mode=%v %v move %d: %d pieces on the board, want %d", mode, pt, move, pieces, want)
 				}
 				for _, tg := range p.targets {
 					if capture {
 						if got := p.board.At(tg); got.Type != chess.Pawn || got.Color != chess.Black {
-							t.Fatalf("capture=%v %v: target %v holds no black pawn", capture, pt, tg)
+							t.Fatalf("mode=%v %v: target %v holds no black pawn", mode, pt, tg)
 						}
 					} else if !p.board.At(tg).IsEmpty() {
-						t.Fatalf("capture=%v %v: star %v is under a piece", capture, pt, tg)
+						t.Fatalf("mode=%v %v: star %v is under a piece", mode, pt, tg)
 					}
-					if !challenge.CanReach(p.board, p.at, tg, maxJourney+2) {
-						t.Fatalf("capture=%v %v move %d: target %v unreachable from %v", capture, pt, move, tg, p.at)
+					if !challenge.CanReachAvoiding(p.board, p.at, tg, maxJourney+2, p.avoid) {
+						t.Fatalf("mode=%v %v move %d: target %v unreachable from %v", mode, pt, move, tg, p.at)
 					}
 				}
 				to := p.solutions[rng.IntN(len(p.solutions))]
+				if p.avoid != nil && p.avoid(to) {
+					// The scene turns this tap down, so the piece stays where it is.
+					p.refuse(&g.ctx, to, g.ctx.M)
+					continue
+				}
 				p.pieceSelected = true
 				p.startMove(to, g.ctx.M)
 			}
 		}
+	}
+}
+
+// fixedSafe is a rook with a guard rook at (4,2). With the player lifted, the
+// guard attacks all of rank 2 and all of file 4, so (0,2) is hot while (0,3) is
+// safe; the star at (1,3) is two safe moves away.
+func fixedSafe() challenge.Puzzle {
+	b := chess.NewBoard(5, 5)
+	piece := chess.Piece{Type: chess.Rook, Color: chess.White}
+	guard := chess.Sq(4, 2)
+	b.Set(chess.Sq(0, 0), piece)
+	b.Set(guard, chess.Piece{Type: chess.Rook, Color: chess.Black})
+	lifted := b.Clone()
+	lifted.Set(chess.Sq(0, 0), chess.Piece{})
+	return challenge.Puzzle{
+		Board: b, From: chess.Sq(0, 0), Piece: piece,
+		Targets: []chess.Square{chess.Sq(1, 3)}, Optimal: 2,
+		Guard: guard, Hot: lifted.Attacks(guard),
+	}
+}
+
+func newFixedSafe(g *Game) *PlayScene {
+	g.ctx.M = layout.Compute(1080, 2400, 2.75, layout.Insets{}, 5, 5)
+	g.ctx.DT = 1.0 / 60
+	return newPlayScene(g, chess.Rook, func() challenge.Puzzle { return fixedSafe() }, func(p *PlayScene) { p.safe = true })
+}
+
+// Tapping a square the guard attacks is refused: the piece stays put, nothing is
+// collected, and the warning flashes. A safe square works as normal.
+func TestSafeRefusesGuardedSquares(t *testing.T) {
+	g := testGame()
+	p := newFixedSafe(g)
+
+	p.pieceSelected = true
+	tapCell(g, g.ctx.M, 0, 2) // hot
+	if err := p.Update(&g.ctx); err != nil {
+		t.Fatal(err)
+	}
+	g.pointer.JustPressed = nil
+	if p.state != stateIdle || p.at != chess.Sq(0, 0) {
+		t.Fatalf("the piece moved onto a guarded square: state=%v at=%v", p.state, p.at)
+	}
+	if p.flashT <= 0 || p.lungeT <= 0 {
+		t.Fatalf("no warning after a refused move: flash=%v lunge=%v", p.flashT, p.lungeT)
+	}
+
+	hop(t, g, p, chess.Sq(0, 3), 40) // safe
+	if p.at != chess.Sq(0, 3) {
+		t.Fatalf("a safe move was refused: at=%v", p.at)
+	}
+	hop(t, g, p, chess.Sq(1, 3), 30)
+	if !p.kit.celebrating() || !p.kit.perfect {
+		t.Fatalf("celebrating=%v perfect=%v, want a perfect win in 2 safe moves", p.kit.celebrating(), p.kit.perfect)
+	}
+}
+
+// For the first rounds the red squares are always on show; afterwards they come
+// with the move dots.
+func TestSafeWarningFadesWithTheTeachingRounds(t *testing.T) {
+	g := testGame()
+	p := newFixedSafe(g)
+	if p.safeRound > safeTeachRounds || p.dangerStrength() != 1 {
+		t.Fatalf("round %d: strength %v, want the warning fully on show", p.safeRound, p.dangerStrength())
+	}
+	p.safeRound = safeTeachRounds + 1
+	if got := p.dangerStrength(); got != 0 {
+		t.Fatalf("after the teaching rounds, with nothing picked up, strength = %v, want 0", got)
+	}
+	p.pieceSelected = true
+	p.hintT = 0
+	if got := p.dangerStrength(); got != 1 {
+		t.Fatalf("with the dots showing, strength = %v, want 1", got)
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/testsabirweb/chess-app/internal/challenge"
 	"github.com/testsabirweb/chess-app/internal/input"
 	"github.com/testsabirweb/chess-app/internal/layout"
 	"github.com/testsabirweb/chess-app/internal/render"
@@ -44,6 +45,10 @@ type Game struct {
 	// It lasts for the session, like the stickers, and is always a mode that
 	// needs a piece picked.
 	mode Mode
+
+	// recent remembers the squares the last couple of rounds used, across every
+	// game, so the piece and the stars do not turn up in the same places.
+	recent challenge.Memory
 
 	// stickers are every emoji reward collected this session; the home screen
 	// and the play footer both read it.

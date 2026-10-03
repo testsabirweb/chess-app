@@ -2,13 +2,20 @@
 
 ## Status
 
-Phases 0, 2, 3, 4 and 5 are implemented (shared round kit, mode row, "Which piece?", "Collect the
-stars", "Catch the pawns"). Phases 6–7 are still to do. Phase 4 added `challenge.Puzzle`, `Tour` and `NewTreasure`
+Phases 0, 2, 3, 4, 5 and 6 are implemented (shared round kit, mode row, "Which piece?", "Collect the
+stars", "Catch the pawns", "Stay safe"). Phase 7 (Pawn Wars) is still to do. Phase 4 added `challenge.Puzzle`, `Tour` and `NewTreasure`
 (`internal/challenge/tour.go`); `PlayScene` now takes a `next func() challenge.Puzzle`, so Catch the
 pawns and Stay safe only need a new puzzle source plus their own rules.
 Catch the pawns is the same scene with `capture` set (the targets are real black pawns). Its pawn
 relocation scans every empty square with the pawn placed on it, because a pawn piece only captures
 onto an occupied square, so "squares it can reach while empty" is the wrong test for pawns.
+
+**Randomness and memory.** Every launch seeds the puzzle RNG from the clock (`entropySeed`). A shared
+`challenge.Memory` on `Game` remembers the squares the last two rounds used (starts, stars, pawns,
+guards, candidate pieces) across every game, and each generator avoids them for most of its attempts
+and drops the preference rather than fail. Image caches are bounded: the emoji cache by a byte budget
+with least-recently-used eviction, fonts by a count. Keep new caches bounded, the game runs on old
+phones.
 
 **Phase 1 (voice clips) was built and then removed** at the parent's request; the app is back to
 sound effects only. Ignore every mention of voice clips, `Say`, `ClipID`, `oops` rate limiting and

@@ -20,6 +20,13 @@ type Step struct {
 // The result is sorted by (Rank, File) and never contains `from`, so callers
 // get deterministic output regardless of map iteration order.
 func Reach(b *chess.Board, from chess.Square, maxMoves int) []Step {
+	return ReachAvoiding(b, from, maxMoves, nil)
+}
+
+// ReachAvoiding is Reach, but the piece never stops on a square for which avoid
+// returns true. It may still travel through one on the way: a rook's line can
+// cross a guarded square, it just cannot end a move there. avoid may be nil.
+func ReachAvoiding(b *chess.Board, from chess.Square, maxMoves int, avoid func(chess.Square) bool) []Step {
 	if b == nil || maxMoves <= 0 || !b.Contains(from) {
 		return nil
 	}
@@ -44,6 +51,9 @@ func Reach(b *chess.Board, from chess.Square, maxMoves int) []Step {
 				if _, seen := dist[to]; seen {
 					continue
 				}
+				if avoid != nil && avoid(to) {
+					continue
+				}
 				dist[to] = depth
 				out = append(out, Step{Square: to, Moves: depth})
 				next = append(next, to)
@@ -65,10 +75,15 @@ func Reach(b *chess.Board, from chess.Square, maxMoves int) []Step {
 // It returns 0 when they are the same square and -1 when the target cannot be
 // reached within maxMoves.
 func MovesTo(b *chess.Board, from, target chess.Square, maxMoves int) int {
+	return MovesToAvoiding(b, from, target, maxMoves, nil)
+}
+
+// MovesToAvoiding is MovesTo for a piece that never stops on an avoided square.
+func MovesToAvoiding(b *chess.Board, from, target chess.Square, maxMoves int, avoid func(chess.Square) bool) int {
 	if from == target {
 		return 0
 	}
-	for _, s := range Reach(b, from, maxMoves) {
+	for _, s := range ReachAvoiding(b, from, maxMoves, avoid) {
 		if s.Square == target {
 			return s.Moves
 		}
@@ -79,4 +94,9 @@ func MovesTo(b *chess.Board, from, target chess.Square, maxMoves int) int {
 // CanReach is the boolean form of MovesTo.
 func CanReach(b *chess.Board, from, target chess.Square, maxMoves int) bool {
 	return MovesTo(b, from, target, maxMoves) > 0
+}
+
+// CanReachAvoiding is CanReach for a piece that never stops on an avoided square.
+func CanReachAvoiding(b *chess.Board, from, target chess.Square, maxMoves int, avoid func(chess.Square) bool) bool {
+	return MovesToAvoiding(b, from, target, maxMoves, avoid) > 0
 }

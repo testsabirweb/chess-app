@@ -17,26 +17,30 @@ const (
 // NewCatch deals a round for the piece pt with k black pawns to capture. The
 // pawns are real pieces on the board and never move. Like NewTreasure it
 // settles for fewer pawns rather than loop forever and always returns a valid
-// puzzle; avoid is the previous round's start square.
-func NewCatch(rng *rand.Rand, pt chess.PieceType, color chess.Color, k int, avoid chess.Square) Puzzle {
+// puzzle; mem is what recent rounds used, which the start and the pawns avoid
+// for most of the attempts.
+func NewCatch(rng *rand.Rand, pt chess.PieceType, color chess.Color, k int, mem *Memory) Puzzle {
 	for ; k >= 1; k-- {
 		for try := 0; try < catchTries; try++ {
-			if p, ok := tryCatch(rng, pt, color, k, avoid, try < catchTries*2/3); ok {
+			if p, ok := tryCatch(rng, pt, color, k, mem, try < catchTries*2/3); ok {
+				mem.Remember(append([]chess.Square{p.From}, p.Targets...)...)
 				return p
 			}
 		}
 	}
-	return fallbackCatch(pt, color)
+	p := fallbackCatch(pt, color)
+	mem.Remember(append([]chess.Square{p.From}, p.Targets...)...)
+	return p
 }
 
 // pawnHome reports whether a black pawn may stand on this rank. Pawns on the
 // first or last rank would look odd to anyone who knows chess.
 func pawnHome(rank int) bool { return rank >= 1 && rank <= 3 }
 
-func tryCatch(rng *rand.Rand, pt chess.PieceType, color chess.Color, k int, avoid chess.Square, strict bool) (Puzzle, bool) {
+func tryCatch(rng *rand.Rand, pt chess.PieceType, color chess.Color, k int, mem *Memory, strict bool) (Puzzle, bool) {
 	const size = 5
 	from := chess.Sq(rng.IntN(size), rng.IntN(size))
-	if strict && from == avoid {
+	if strict && mem.Has(from) {
 		return Puzzle{}, false
 	}
 	if pt == chess.Pawn && (from.Rank < 1 || from.Rank > size-2) {
@@ -62,6 +66,9 @@ func tryCatch(rng *rand.Rand, pt chess.PieceType, color chess.Color, k int, avoi
 	for _, i := range rng.Perm(len(spots))[:k] {
 		pawns = append(pawns, spots[i])
 		b.Set(spots[i], enemy)
+	}
+	if strict && mem.HasAny(pawns) {
+		return Puzzle{}, false
 	}
 	total, ok := Tour(b, from, pawns, catchLeg)
 	if !ok || total < k || total > catchMaxTour {

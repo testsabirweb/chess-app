@@ -78,6 +78,8 @@ type PlayInfo struct {
 	Hints    []chess.Square
 	Board    *chess.Board
 	Selected bool
+	// Hot is the squares a guard attacks in the Stay-safe game, else nil.
+	Hot []chess.Square
 }
 
 // PlayInfo reports the current play state, or ok=false on other scenes.
@@ -94,7 +96,7 @@ func (g *Game) PlayInfo() (PlayInfo, bool) {
 	}
 	return PlayInfo{
 		Piece: ps.at, Target: target, Hints: ps.solutions, Board: ps.board,
-		Selected: ps.pieceSelected,
+		Selected: ps.pieceSelected, Hot: ps.hot,
 	}, true
 }
 

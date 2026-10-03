@@ -83,10 +83,51 @@ type emojiKey struct {
 	px   int
 }
 
+// emojiCacheBudget caps the pixels the emoji cache holds, in bytes (four per
+// pixel). Every sticker the child collects is rasterised at a few sizes, and
+// the reward pool holds a hundred-odd emoji, so without a cap a long session
+// would slowly fill a phone's memory with stickers nobody is looking at.
+// 6 MB comfortably holds everything on screen at once (the tray, the flying
+// sticker, the milestone row) and little else.
+const emojiCacheBudget = 6 << 20
+
+type emojiEntry struct {
+	img   *ebiten.Image
+	bytes int
+	used  uint64 // emojiClock at the last use; the smallest is evicted first
+}
+
 var (
-	emojiCache = map[emojiKey]*ebiten.Image{}
+	emojiCache = map[emojiKey]*emojiEntry{}
+	emojiBytes int
+	emojiClock uint64
 	emojiMu    sync.Mutex
 )
+
+// evictEmoji drops the least recently used images until the cache fits its
+// budget, never the one just added. The images are only forgotten, not
+// disposed: a caller may still be drawing one this frame, and the garbage
+// collector frees it once nothing is.
+func evictEmoji(keep emojiKey) {
+	for emojiBytes > emojiCacheBudget && len(emojiCache) > 1 {
+		var oldest emojiKey
+		var oldestUsed uint64
+		found := false
+		for k, e := range emojiCache {
+			if k == keep {
+				continue
+			}
+			if !found || e.used < oldestUsed {
+				oldest, oldestUsed, found = k, e.used, true
+			}
+		}
+		if !found {
+			return
+		}
+		emojiBytes -= emojiCache[oldest].bytes
+		delete(emojiCache, oldest)
+	}
+}
 
 // rasterSizes is the ladder every SVG raster snaps to. A sticker that shrinks
 // as it flies into the tray would otherwise rasterise itself again at every
@@ -110,8 +151,10 @@ func EmojiImage(name string, px int) *ebiten.Image {
 	key := emojiKey{name: name, px: px}
 	emojiMu.Lock()
 	defer emojiMu.Unlock()
-	if img, ok := emojiCache[key]; ok {
-		return img
+	emojiClock++
+	if e, ok := emojiCache[key]; ok {
+		e.used = emojiClock
+		return e.img
 	}
 	data, err := emojiFS.ReadFile(path.Join("assets/emoji", name+".svg"))
 	if err != nil {
@@ -121,7 +164,10 @@ func EmojiImage(name string, px int) *ebiten.Image {
 	if err != nil {
 		return nil
 	}
-	emojiCache[key] = img
+	size := img.Bounds().Dx() * img.Bounds().Dy() * 4
+	emojiCache[key] = &emojiEntry{img: img, bytes: size, used: emojiClock}
+	emojiBytes += size
+	evictEmoji(key)
 	return img
 }
 

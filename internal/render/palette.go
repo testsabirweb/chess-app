@@ -86,6 +86,10 @@ var (
 	}
 )
 
+// ColorDanger tints the squares a guard attacks: a warm, soft red that sits
+// with the cream-and-green board rather than shouting over it.
+var ColorDanger = color.RGBA{214, 84, 74, 255}
+
 // The mode buttons on the home screen are cream, not one of the card colours:
 // their icons are bright emoji, and a red question mark on an orange card
 // disappears.

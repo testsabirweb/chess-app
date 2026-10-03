@@ -97,7 +97,7 @@ func (s *WhichScene) deal() {
 	if s.lastAnswers[0] != chess.NoPiece && s.lastAnswers[0] == s.lastAnswers[1] {
 		avoid = s.lastAnswers[0]
 	}
-	s.cur = challenge.NewWhich(s.game.ctx.Rand, beginnerPieces, n, avoid)
+	s.cur = challenge.NewWhich(s.game.ctx.Rand, beginnerPieces, n, avoid, &s.game.recent)
 	s.answer = 0
 	for i, sq := range s.cur.Pieces {
 		if sq == s.cur.Answer {

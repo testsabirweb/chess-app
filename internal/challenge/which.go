@@ -20,7 +20,8 @@ const (
 	// whichAttempts bounds the random search for a valid layout at one piece
 	// count before it settles for fewer pieces.
 	whichAttempts = 400
-	// whichStrict is how many of those attempts insist on dodging `avoid`; the
+	// whichStrict is how many of those attempts insist on dodging `avoid` and
+	// the squares in memory; the
 	// rest accept it, so a small pool can never get stuck.
 	whichStrict = 300
 )
@@ -29,21 +30,24 @@ const (
 // not of type avoid when that can be helped, so the same piece is not the
 // right pick round after round. It settles for fewer pieces rather than loop
 // forever, and always returns a valid round.
-func NewWhich(rng *rand.Rand, pool []chess.PieceType, n int, avoid chess.PieceType) Which {
+func NewWhich(rng *rand.Rand, pool []chess.PieceType, n int, avoid chess.PieceType, mem *Memory) Which {
 	if n > len(pool) {
 		n = len(pool)
 	}
 	for ; n >= 2; n-- {
 		for try := 0; try < whichAttempts; try++ {
-			if w, ok := tryWhich(rng, pool, n, avoid, try < whichStrict); ok {
+			if w, ok := tryWhich(rng, pool, n, avoid, mem, try < whichStrict); ok {
+				mem.Remember(append(append([]chess.Square{}, w.Pieces...), w.Target)...)
 				return w
 			}
 		}
 	}
-	return fallbackWhich()
+	w := fallbackWhich()
+	mem.Remember(append(append([]chess.Square{}, w.Pieces...), w.Target)...)
+	return w
 }
 
-func tryWhich(rng *rand.Rand, pool []chess.PieceType, n int, avoid chess.PieceType, strict bool) (Which, bool) {
+func tryWhich(rng *rand.Rand, pool []chess.PieceType, n int, avoid chess.PieceType, mem *Memory, strict bool) (Which, bool) {
 	b := chess.NewBoard(whichSize, whichSize)
 	types := make([]chess.PieceType, 0, n)
 	for _, i := range rng.Perm(len(pool))[:n] {
@@ -70,6 +74,9 @@ func tryWhich(rng *rand.Rand, pool []chess.PieceType, n int, avoid chess.PieceTy
 		if !placed {
 			return Which{}, false
 		}
+		if strict && mem.Has(squares[len(squares)-1]) {
+			return Which{}, false
+		}
 	}
 
 	// Who can reach each empty square. All the candidates are on the board, so
@@ -86,7 +93,7 @@ func tryWhich(rng *rand.Rand, pool []chess.PieceType, n int, avoid chess.PieceTy
 		if len(by) != 1 || !b.At(to).IsEmpty() {
 			continue
 		}
-		if strict && b.At(squares[by[0]]).Type == avoid {
+		if strict && (b.At(squares[by[0]]).Type == avoid || mem.Has(to)) {
 			continue
 		}
 		targets = append(targets, to)

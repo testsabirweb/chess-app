@@ -16,6 +16,10 @@ type Puzzle struct {
 	Targets []chess.Square
 	// Optimal is the fewest moves that clear every target, in any order.
 	Optimal int
+	// Guard and Hot are only set by the Stay-safe game: the enemy piece that
+	// does not move, and the squares it attacks, where the piece must not stop.
+	Guard chess.Square
+	Hot   []chess.Square
 }
 
 // Tour reports the fewest moves for the piece on `from` to land on every
@@ -26,6 +30,11 @@ type Puzzle struct {
 // that holds a piece is captured as the piece lands, so lines open up and
 // close exactly as they would in play.
 func Tour(b *chess.Board, from chess.Square, targets []chess.Square, legMax int) (moves int, ok bool) {
+	return TourAvoiding(b, from, targets, legMax, nil)
+}
+
+// TourAvoiding is Tour for a piece that never stops on an avoided square.
+func TourAvoiding(b *chess.Board, from chess.Square, targets []chess.Square, legMax int, avoid func(chess.Square) bool) (moves int, ok bool) {
 	if b == nil || len(targets) == 0 {
 		return 0, true
 	}
@@ -45,7 +54,7 @@ func Tour(b *chess.Board, from chess.Square, targets []chess.Square, legMax int)
 			return
 		}
 		for i, t := range left {
-			d := MovesTo(board, at, t, legMax)
+			d := MovesToAvoiding(board, at, t, legMax, avoid)
 			if d <= 0 {
 				continue
 			}
@@ -79,24 +88,27 @@ const (
 
 // NewTreasure deals a round for the piece pt with k stars to collect. It
 // settles for fewer stars rather than loop forever (a pawn can only climb, so
-// it often cannot reach three), and always returns a valid puzzle. avoid is the
-// previous round's start square, so the piece does not begin where it just was.
-func NewTreasure(rng *rand.Rand, pt chess.PieceType, color chess.Color, k int, avoid chess.Square) Puzzle {
+// it often cannot reach three), and always returns a valid puzzle. mem is what
+// recent rounds used: the start and the stars avoid those squares for most of
+// the attempts, never all of them.
+func NewTreasure(rng *rand.Rand, pt chess.PieceType, color chess.Color, k int, mem *Memory) Puzzle {
 	for ; k >= 1; k-- {
 		for try := 0; try < treasureAttempts; try++ {
-			// Dodge the previous start for most of the attempts, never all of them.
-			if p, ok := tryTreasure(rng, pt, color, k, avoid, try < treasureAttempts*2/3); ok {
+			if p, ok := tryTreasure(rng, pt, color, k, mem, try < treasureAttempts*2/3); ok {
+				mem.Remember(append([]chess.Square{p.From}, p.Targets...)...)
 				return p
 			}
 		}
 	}
-	return fallbackTreasure(pt, color)
+	p := fallbackTreasure(pt, color)
+	mem.Remember(append([]chess.Square{p.From}, p.Targets...)...)
+	return p
 }
 
-func tryTreasure(rng *rand.Rand, pt chess.PieceType, color chess.Color, k int, avoid chess.Square, strict bool) (Puzzle, bool) {
+func tryTreasure(rng *rand.Rand, pt chess.PieceType, color chess.Color, k int, mem *Memory, strict bool) (Puzzle, bool) {
 	const size = 5
 	from := chess.Sq(rng.IntN(size), rng.IntN(size))
-	if strict && from == avoid {
+	if strict && mem.Has(from) {
 		return Puzzle{}, false
 	}
 	// A pawn behind its home rank could double-push twice; see Generator.startOK.
@@ -117,6 +129,9 @@ func tryTreasure(rng *rand.Rand, pt chess.PieceType, color chess.Color, k int, a
 	picked := make([]chess.Square, 0, k)
 	for _, i := range rng.Perm(len(pool))[:k] {
 		picked = append(picked, pool[i])
+	}
+	if strict && mem.HasAny(picked) {
+		return Puzzle{}, false
 	}
 	total, ok := Tour(b, from, picked, treasureLeg)
 	// A tour with fewer moves than stars would mean one landing collected two,

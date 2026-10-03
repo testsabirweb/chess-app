@@ -99,6 +99,22 @@ func DrawMoveHints(dst *ebiten.Image, m layout.Metrics, hints []Hint, fade float
 	}
 }
 
+// DrawDangerTint washes the squares a guard attacks in soft red. strength runs
+// from 0 (nothing) to 1 (fully shown), so the warning can arrive and leave
+// gently, and pulse when a move onto one has just been refused.
+func DrawDangerTint(dst *ebiten.Image, m layout.Metrics, squares []chess.Square, strength float64) {
+	if strength <= 0 {
+		return
+	}
+	if strength > 1 {
+		strength = 1
+	}
+	for _, sq := range squares {
+		cr := m.CellRect(int(sq.File), int(sq.Rank))
+		DrawFilledRect(dst, cr.X, cr.Y, cr.W, cr.H, Alpha(ColorDanger, 0.55*strength))
+	}
+}
+
 // DrawMoveTrail draws the path a piece took, so the shape of the move stays on
 // screen for a moment after the piece has landed. fade scales it out.
 func DrawMoveTrail(dst *ebiten.Image, m layout.Metrics, pts [][2]float64, fade float64) {

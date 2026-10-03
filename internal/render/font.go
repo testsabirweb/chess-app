@@ -11,6 +11,9 @@ import (
 	"golang.org/x/image/font/gofont/gobold"
 )
 
+// maxFaces bounds the font face cache.
+const maxFaces = 256
+
 var (
 	boldSrc     *text.GoTextFaceSource
 	faceCache   = map[int]*text.GoTextFace{}
@@ -34,6 +37,11 @@ func Face(size float64) *text.GoTextFace {
 	defer faceCacheMu.Unlock()
 	if f, ok := faceCache[px]; ok {
 		return f
+	}
+	// Text is fitted to its box, so sizes vary continuously; a face is tiny, but
+	// the set should still never grow without end.
+	if len(faceCache) >= maxFaces {
+		faceCache = map[int]*text.GoTextFace{}
 	}
 	f := &text.GoTextFace{Source: boldSrc, Size: float64(px)}
 	faceCache[px] = f

@@ -52,6 +52,24 @@ type Generator struct {
 	count     int
 	last      triple
 	prevPiece chess.PieceType
+	mem       *Memory
+}
+
+// SetMemory has the generator avoid starting or placing the star on squares
+// recent rounds used, and report its own squares back. It is shared with the
+// other games, so a square does not come round again straight after another
+// game used it. Optional: nil remembers nothing.
+func (g *Generator) SetMemory(m *Memory) { g.mem = m }
+
+func (g *Generator) filterMemory(c []triple) []triple {
+	out := c[:0]
+	for _, t := range c {
+		if g.mem.Has(t.from) || g.mem.Has(t.to) {
+			continue
+		}
+		out = append(out, t)
+	}
+	return out
 }
 
 func NewGenerator(spec Spec, rng *rand.Rand) *Generator {
@@ -83,7 +101,10 @@ func (g *Generator) Next() Challenge {
 	pieceType := g.pickPieceType()
 	all := g.enumerate(pieceType)
 
-	candidates := g.filterFar(g.filterLastFromTarget(g.filterHistory(g.filterDistance(clone(all)))))
+	candidates := g.filterFar(g.filterMemory(g.filterLastFromTarget(g.filterHistory(g.filterDistance(clone(all))))))
+	if len(candidates) == 0 {
+		candidates = g.filterFar(g.filterLastFromTarget(g.filterHistory(g.filterDistance(clone(all)))))
+	}
 	if len(candidates) == 0 {
 		candidates = g.filterLastFromTarget(g.filterHistory(g.filterDistance(clone(all))))
 	}
@@ -99,6 +120,7 @@ func (g *Generator) Next() Challenge {
 
 	pick := candidates[g.rng.IntN(len(candidates))]
 	g.pushHistory(pick)
+	g.mem.Remember(pick.from, pick.to)
 	g.prevPiece = pick.piece
 
 	board := g.boardFor(pick.from, pick.piece, pick.decoy)

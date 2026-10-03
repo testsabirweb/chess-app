@@ -116,7 +116,15 @@ func tapTowardStar(g *game.Game) {
 	}
 	pick := info.Hints[0]
 	best := 1 << 30
+	hot := map[chess.Square]bool{}
+	for _, h := range info.Hot {
+		hot[h] = true
+	}
+	avoid := func(sq chess.Square) bool { return len(hot) > 0 && (hot[sq] || !info.Board.At(sq).IsEmpty()) }
 	for _, s := range info.Hints {
+		if avoid(s) {
+			continue // in Stay safe the walk dodges the guard's squares
+		}
 		if s == info.Target {
 			pick = s
 			break
@@ -126,7 +134,7 @@ func tapTowardStar(g *game.Game) {
 		p := b.At(info.Piece)
 		b.Set(info.Piece, chess.Piece{})
 		b.Set(s, p)
-		d := challenge.MovesTo(b, s, info.Target, 4)
+		d := challenge.MovesToAvoiding(b, s, info.Target, 4, avoid)
 		if d > 0 && d < best {
 			best, pick = d, s
 		}
@@ -135,6 +143,26 @@ func tapTowardStar(g *game.Game) {
 		g.TapSquare(int(info.Piece.File), int(info.Piece.Rank))
 	}
 	g.TapSquare(int(pick.File), int(pick.Rank))
+}
+
+// tapHotSquare picks the piece up and taps a square the guard attacks, to show
+// the refusal.
+func tapHotSquare(g *game.Game) {
+	info, ok := g.PlayInfo()
+	if !ok {
+		return
+	}
+	for _, h := range info.Hints {
+		for _, hot := range info.Hot {
+			if h == hot {
+				if !info.Selected {
+					g.TapSquare(int(info.Piece.File), int(info.Piece.Rank))
+				}
+				g.TapSquare(int(h.File), int(h.Rank))
+				return
+			}
+		}
+	}
 }
 
 // tapWrongPiece taps a piece that cannot reach the star.
@@ -216,6 +244,22 @@ func main() {
 			{frame: 170, shot: "05-hopping"},
 			{frame: 200, shot: "06-reward-pop"},
 			{frame: 225, shot: "07-reward-fly"},
+		}
+	} else if *scene == "play" && *mode == "safe" {
+		g = game.NewInMode(game.ModeSafe, pieceByName(*piece))
+		g.SetHintDelay(*hintDelay)
+		g.SeedStickers(*seed)
+		steps = []step{
+			{frame: 30, shot: "01-idle"},
+			{frame: 34, do: tapHotSquare},
+			{frame: 44, shot: "02-refused"},
+			{frame: 52, shot: "03-refused-later"},
+		}
+		for i := 0; i < 4; i++ {
+			steps = append(steps,
+				step{frame: 120 + 45*i, do: tapTowardStar},
+				step{frame: 120 + 45*i + 35, shot: fmt.Sprintf("%02d-hop", i+4)},
+			)
 		}
 	} else if *scene == "play" && (*mode == "treasure" || *mode == "catch") {
 		m, _ := game.ModeByName(*mode)
