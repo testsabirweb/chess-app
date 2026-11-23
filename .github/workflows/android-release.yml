@@ -107,7 +107,7 @@ jobs:
           fi
 
       - name: Run unit tests (pure packages)
-        run: go test -race ./internal/chess ./internal/challenge ./internal/layout ./internal/anim
+        run: go test -race ./internal/chess ./internal/challenge ./internal/puzzles ./internal/layout ./internal/anim
 
       - name: Typecheck rendering layer (no display/audio needed)
         run: GOOS=js GOARCH=wasm go build ./...
