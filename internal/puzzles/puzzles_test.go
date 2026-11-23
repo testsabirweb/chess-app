@@ -186,3 +186,68 @@ func TestBankMateThree(t *testing.T) {
 		}
 	}
 }
+
+// The bank has a real quota of puzzles where the knight delivers the last
+// check, and they must be in the mating tiers only.
+func TestBankHasKnightFinishes(t *testing.T) {
+	want := map[Tier]int{Mate2: 30, Mate3: 20}
+	for tier, n := range want {
+		depth := 2
+		if tier == Mate3 {
+			depth = 3
+		}
+		got := 0
+		for _, p := range ByTier()[tier] {
+			if KnightMatesIn(p.Board, chess.White, depth) {
+				got++
+			}
+		}
+		if got < n {
+			t.Fatalf("%s: %d knight-finish puzzles, want at least %d", tier, got, n)
+		}
+	}
+	// No knight puzzles in the earliest tiers: they have no knights at all.
+	for _, p := range append(ByTier()[Check], append(ByTier()[Mate1], ByTier()[Mate1Trap]...)...) {
+		for _, sq := range p.Board.Occupied() {
+			if p.Board.At(sq).Type == chess.Knight {
+				t.Fatalf("%s has a knight", Encode(p))
+			}
+		}
+	}
+}
+
+// The generator now prefers the back rank and a pawn wall in front of the king,
+// the patterns a beginner is taught first.
+func TestBankPrefersBackRankPatterns(t *testing.T) {
+	check := func(tier Tier) (back, wall int) {
+		for _, p := range ByTier()[tier] {
+			k, _ := p.Board.KingSquare(chess.Black)
+			if int(k.Rank) != 4 {
+				continue
+			}
+			back++
+			for df := -1; df <= 1; df++ {
+				f := int(k.File) + df
+				if f < 0 || f >= 5 {
+					continue
+				}
+				pc := p.Board.At(chess.Sq(f, 3))
+				if pc.Type == chess.Pawn && pc.Color == chess.Black {
+					wall++
+					break
+				}
+			}
+		}
+		return back, wall
+	}
+	for _, tier := range []Tier{Mate1, Mate2, Mate3} {
+		list := ByTier()[tier]
+		back, wall := check(tier)
+		if back < len(list)*40/100 {
+			t.Fatalf("%s: only %d/%d kings on the back rank", tier, back, len(list))
+		}
+		if wall < len(list)*10/100 {
+			t.Fatalf("%s: only %d/%d kings have a pawn wall", tier, wall, len(list))
+		}
+	}
+}

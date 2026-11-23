@@ -329,6 +329,52 @@ func MateMove(b *chess.Board, c chess.Color, n int) (chess.Move, bool) {
 	return chess.Move{}, false
 }
 
+// KnightMateMove returns a first move of a forced mate in n whose final mating
+// move, whatever black replies, is delivered by a knight. It is how the bank
+// gets positions where the knight is the hero rather than decoration.
+func KnightMateMove(b *chess.Board, c chess.Color, n int) (chess.Move, bool) {
+	if n <= 0 {
+		return chess.Move{}, false
+	}
+	opp := c.Opponent()
+	for _, m := range b.LegalMovesFor(c) {
+		after := b.After(m)
+		if n == 1 {
+			if b.At(m.From).Type == chess.Knight && after.Checkmate(opp) {
+				return m, true
+			}
+			continue
+		}
+		if after.Checkmate(opp) {
+			// The line ends here: it counts only if the knight delivered it.
+			if b.At(m.From).Type == chess.Knight {
+				return m, true
+			}
+			continue
+		}
+		if !after.InCheck(opp) {
+			continue
+		}
+		ok := true
+		for _, r := range after.LegalMovesFor(opp) {
+			if !KnightMatesIn(after.After(r), c, n-1) {
+				ok = false
+				break
+			}
+		}
+		if ok {
+			return m, true
+		}
+	}
+	return chess.Move{}, false
+}
+
+// KnightMatesIn is whether such a first move exists.
+func KnightMatesIn(b *chess.Board, c chess.Color, n int) bool {
+	_, ok := KnightMateMove(b, c, n)
+	return ok
+}
+
 // ContinuesMate reports whether c's move m keeps a forced mate in `remaining`
 // more of c's moves against every reply. If it does not, escape is a reply that
 // breaks the mate, for the board to show.

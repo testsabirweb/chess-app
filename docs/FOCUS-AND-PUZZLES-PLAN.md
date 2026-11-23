@@ -28,10 +28,11 @@ example, "no saving between launches"), it is listed under **Open questions** ra
 **Part B is implemented**: the chess engine has check, legal moves, checkmate and stalemate; the
 puzzle bank is built offline by `make puzzles` (`cmd/genpuzzles`) and embedded from
 `internal/puzzles/bank.txt`; the puzzle game is on the home screen (crown button) with all five
-tiers, including mate in three. The bank holds 1,070 positions (about 56 KB) and each tier is dealt
-from a shuffled bag, so a puzzle does not repeat until its tier is used up. The puzzle tier moves up
-after three clean rounds and down after two rough ones (three or more misses), in the session only
-(see open question 1).
+tiers, including mate in three. The bank holds 800 positions (about 40 KB) and each tier is dealt
+from a shuffled bag, so a puzzle does not repeat until its tier is used up. The generator prefers
+back-rank kings with a wall of their own pawns and edge mates, and adds 50 mate-in-two and mate-in-three
+puzzles whose final check is a knight's. The puzzle tier moves up after three clean rounds and down
+after two rough ones (three or more misses), in the session only (see open question 1).
 
 **Part A:** Pawn Wars (A4) was implemented, then removed at the parent's request in favour of the
 mate-in-three tier. Still open are away-from-the-app advice (A0, no code), levels for the older games

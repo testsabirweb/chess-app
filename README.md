@@ -45,9 +45,10 @@ go back to the star game.
   where the app plays black's replies. Three clean puzzles in a row move him up
   a step; two rough puzzles (three or more misses) in a row move him back down.
   After two misses the right piece glows; after three, its square does. Wrong
-  moves are always taken back and never lose a sticker. The 1,070 positions are
+  moves are always taken back and never lose a sticker. The 800 positions are
   dealt from a shuffled bag per tier, so a puzzle does not come round again
-  until its tier is used up.
+  until its tier is used up. The bank favours back-rank and edge mates, and has
+  a set of mate-in-two and mate-in-three puzzles finished by a knight.
 - **Which piece?** — two or three pieces and a star. Exactly one piece can reach
   the star in a single move. Tap it to pick it up, then tap the star to move it
   there yourself. A wrong pick shows what

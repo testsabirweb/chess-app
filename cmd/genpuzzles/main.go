@@ -27,6 +27,16 @@ type material struct {
 	pawns  int
 }
 
+// knightMaterials are only used for the knight puzzles: positions where a
+// knight delivers the final mate, so the knight is the hero rather than a
+// piece that happens to be there.
+var knightMaterials = []material{
+	{pieces: []chess.PieceType{chess.Queen, chess.Knight}},
+	{pieces: []chess.PieceType{chess.Rook, chess.Knight}},
+	{pieces: []chess.PieceType{chess.Queen, chess.Knight}, pawns: 1},
+	{pieces: []chess.PieceType{chess.Rook, chess.Knight}, pawns: 1},
+}
+
 var materials = []material{
 	{pieces: []chess.PieceType{chess.Queen}},
 	{pieces: []chess.PieceType{chess.Rook}},
@@ -41,11 +51,19 @@ var materials = []material{
 // targets is how many puzzles of each tier to aim for. These counts keep the
 // bank a few kilobytes.
 var targets = map[puzzles.Tier]int{
-	puzzles.Check:     200,
-	puzzles.Mate1:     300,
-	puzzles.Mate1Trap: 250,
-	puzzles.Mate2:     200,
-	puzzles.Mate3:     120,
+	puzzles.Check:     150,
+	puzzles.Mate1:     210,
+	puzzles.Mate1Trap: 175,
+	puzzles.Mate2:     140,
+	puzzles.Mate3:     75,
+}
+
+// knightTargets are extra puzzles added on top of the tier counts, where the
+// knight delivers the last check. They are rarer, so they get their own,
+// longer search. With the tier counts above the bank is 800 puzzles.
+var knightTargets = map[puzzles.Tier]int{
+	puzzles.Mate2: 30,
+	puzzles.Mate3: 20,
 }
 
 // generateOrder runs the hardest, rarest kinds first, so a position that could
@@ -54,7 +72,10 @@ var generateOrder = []puzzles.Tier{
 	puzzles.Mate3, puzzles.Mate2, puzzles.Mate1Trap, puzzles.Mate1, puzzles.Check,
 }
 
-const maxAttempts = 400000
+const (
+	maxAttempts    = 400000
+	knightAttempts = 2000000
+)
 
 func main() {
 	out := flag.String("out", "internal/puzzles/bank.txt", "where to write the bank")
@@ -65,10 +86,40 @@ func main() {
 	used := map[string]puzzles.Tier{} // canonical position -> tier that claimed it
 	found := map[puzzles.Tier][]puzzles.Puzzle{}
 
+	// Knight puzzles first: they are the rarest, so they get the board before
+	// the ordinary positions can claim it.
+	for _, tier := range []puzzles.Tier{puzzles.Mate3, puzzles.Mate2} {
+		want := knightTargets[tier]
+		got := 0
+		for try := 0; try < knightAttempts && got < want; try++ {
+			b := randomPosition(rng, knightMaterials)
+			if b == nil {
+				continue
+			}
+			m, ok := candidateKnight(b, tier)
+			if !ok {
+				continue
+			}
+			p := puzzles.Puzzle{Tier: tier, Board: b, Solution: m}
+			if err := p.Valid(); err != nil {
+				continue
+			}
+			key := puzzles.PositionKey(b)
+			if _, dup := used[key]; dup {
+				continue
+			}
+			used[key] = tier
+			found[tier] = append(found[tier], p)
+			got++
+		}
+		fmt.Fprintf(os.Stderr, "%s knight puzzles: %d/%d\n", tier, got, want)
+	}
+
 	for _, tier := range generateOrder {
 		want := targets[tier]
-		for try := 0; try < maxAttempts && len(found[tier]) < want; try++ {
-			b := randomPosition(rng)
+		got := 0
+		for try := 0; try < maxAttempts && got < want; try++ {
+			b := randomPosition(rng, materials)
 			if b == nil {
 				continue
 			}
@@ -86,9 +137,10 @@ func main() {
 			}
 			used[key] = tier
 			found[tier] = append(found[tier], p)
+			got++
 		}
-		fmt.Fprintf(os.Stderr, "%s: %d/%d after search\n", tier, len(found[tier]), want)
-		if len(found[tier]) == 0 {
+		fmt.Fprintf(os.Stderr, "%s: %d/%d after search\n", tier, got, want)
+		if got == 0 {
 			fail("no %s puzzles generated", tier)
 		}
 	}
@@ -126,12 +178,12 @@ func fail(format string, args ...any) {
 // randomPosition places a black king on an edge (mates are easier to see), a
 // white king and one material set, plus black pawns on ranks where they cannot
 // promote in the coming reply. It returns nil when the placement breaks a rule.
-func randomPosition(rng *rand.Rand) *chess.Board {
+func randomPosition(rng *rand.Rand, mats []material) *chess.Board {
 	const size = 5
-	mat := materials[rng.IntN(len(materials))]
+	mat := mats[rng.IntN(len(mats))]
 	b := chess.NewBoard(size, size)
 
-	blackKing := edgeSquare(rng, size)
+	blackKing := patternKingSquare(rng, size)
 	b.Set(blackKing, chess.Piece{Type: chess.King, Color: chess.Black})
 
 	whiteKing := freeSquare(rng, size, b)
@@ -144,22 +196,8 @@ func randomPosition(rng *rand.Rand) *chess.Board {
 		}
 		b.Set(s, chess.Piece{Type: t, Color: chess.White})
 	}
-	for i := 0; i < mat.pawns; i++ {
-		// Ranks 2 and 3 only: a black pawn on rank 1 could promote during the
-		// reply, and the game has no promotion yet.
-		var spots []chess.Square
-		for r := 2; r <= 3; r++ {
-			for f := 0; f < size; f++ {
-				if sq := chess.Sq(f, r); b.At(sq).IsEmpty() {
-					spots = append(spots, sq)
-				}
-			}
-		}
-		if len(spots) == 0 {
-			return nil
-		}
-		s := spots[rng.IntN(len(spots))]
-		b.Set(s, chess.Piece{Type: chess.Pawn, Color: chess.Black})
+	if !placeBlackPawns(rng, b, mat.pawns, blackKing) {
+		return nil
 	}
 
 	if b.InCheck(chess.Black) || b.InCheck(chess.White) {
@@ -189,6 +227,60 @@ func edgeSquare(rng *rand.Rand, n int) chess.Square {
 	return chess.Sq(rng.IntN(n), r)
 }
 
+// patternKingSquare favours the two back ranks and corners, where mates are
+// the edge and back-rank patterns coaches teach first, and puts the king on any
+// edge square the rest of the time so positions do not all look alike.
+func patternKingSquare(rng *rand.Rand, n int) chess.Square {
+	r := rng.IntN(100)
+	switch {
+	case r < 45:
+		return chess.Sq(rng.IntN(n), n-1) // black's back rank
+	case r < 70:
+		return chess.Sq(rng.IntN(n), 0)
+	default:
+		return edgeSquare(rng, n)
+	}
+}
+
+// placeBlackPawns puts the pawns in front of a back-rank king first, so the
+// king is boxed in by its own pawns - the classic back-rank picture - and the
+// rest anywhere on ranks 2 and 3. Rank 1 is avoided because a pawn there could
+// promote during black's reply, and the game has no promotion yet.
+func placeBlackPawns(rng *rand.Rand, b *chess.Board, count int, king chess.Square) bool {
+	const size = 5
+	placed := 0
+	if count > 0 && int(king.Rank) == size-1 {
+		files := []int{int(king.File) - 1, int(king.File), int(king.File) + 1}
+		rng.Shuffle(len(files), func(i, j int) { files[i], files[j] = files[j], files[i] })
+		for _, f := range files {
+			if f < 0 || f >= size {
+				continue
+			}
+			sq := chess.Sq(f, size-2)
+			if b.At(sq).IsEmpty() {
+				b.Set(sq, chess.Piece{Type: chess.Pawn, Color: chess.Black})
+				placed++
+				break
+			}
+		}
+	}
+	for ; placed < count; placed++ {
+		var spots []chess.Square
+		for r := 2; r <= 3; r++ {
+			for f := 0; f < size; f++ {
+				if sq := chess.Sq(f, r); b.At(sq).IsEmpty() {
+					spots = append(spots, sq)
+				}
+			}
+		}
+		if len(spots) == 0 {
+			return false
+		}
+		b.Set(spots[rng.IntN(len(spots))], chess.Piece{Type: chess.Pawn, Color: chess.Black})
+	}
+	return true
+}
+
 func freeSquare(rng *rand.Rand, n int, b *chess.Board) chess.Square {
 	for i := 0; i < 40; i++ {
 		s := chess.Sq(rng.IntN(n), rng.IntN(n))
@@ -200,6 +292,23 @@ func freeSquare(rng *rand.Rand, n int, b *chess.Board) chess.Square {
 }
 
 func isZero(s chess.Square) bool { return s.File < 0 || s.Rank < 0 }
+
+// candidateKnight is candidate for a knight puzzle: the line must end in a
+// knight mate, and a mate in one or two must not be there first.
+func candidateKnight(b *chess.Board, tier puzzles.Tier) (chess.Move, bool) {
+	white := chess.White
+	n := 2
+	if tier == puzzles.Mate3 {
+		n = 3
+	}
+	if len(puzzles.MateMoves(b, white)) != 0 {
+		return chess.Move{}, false
+	}
+	if n == 3 && puzzles.ForcedMate(b, white, 2) {
+		return chess.Move{}, false
+	}
+	return puzzles.KnightMateMove(b, white, n)
+}
 
 // candidate finds the move the app will show as the intended answer, and
 // reports whether the position really is the tier it is being tried for.
