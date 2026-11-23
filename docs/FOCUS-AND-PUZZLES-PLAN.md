@@ -31,8 +31,13 @@ puzzle bank is built offline by `make puzzles` (`cmd/genpuzzles`) and embedded f
 tiers, including mate in two. The puzzle tier moves up after three clean rounds and down after three
 rough ones, in the session only (see open question 1).
 
-**Part A is still open**, except A1 for puzzles. Away-from-the-app advice (A0), levels for the older
-games (A1), the today trail (A2), reward changes (A3) and Pawn Wars (A4) are not implemented yet.
+**Part A:** A4 (Pawn Wars) is implemented too: the handshake button opens it. Still open are
+away-from-the-app advice (A0, no code), levels for the older games (A1), the today trail (A2) and the
+reward changes (A3).
+
+The board stays 5x5. It is the board he knows, the squares stay large for small fingers, and every
+bank puzzle fits on it; `layout.Compute` already takes the board size, so an 8x8 mode is possible
+later without rework, but there is no need for one now.
 
 ---
 

@@ -146,6 +146,11 @@ func tapTowardStar(g *game.Game) {
 	g.TapSquare(int(pick.File), int(pick.Rank))
 }
 
+// tapCellShot taps a board cell by file and rank.
+func tapCellShot(f, r int) func(*game.Game) {
+	return func(g *game.Game) { g.TapSquare(f, r) }
+}
+
 // tapPuzzleFrom picks up the piece that solves the puzzle as dealt.
 func tapPuzzleFrom(g *game.Game) {
 	if info, ok := g.PuzzleInfo(); ok {
@@ -259,6 +264,21 @@ func main() {
 			{frame: 170, shot: "05-hopping"},
 			{frame: 200, shot: "06-reward-pop"},
 			{frame: 225, shot: "07-reward-fly"},
+		}
+	} else if *scene == "play" && *mode == "pawnwars" {
+		g = game.NewInMode(game.ModePawnWars, chess.Rook)
+		g.SetHintDelay(*hintDelay)
+		g.SeedStickers(*seed)
+		steps = []step{
+			{frame: 30, shot: "01-white-turn"},
+			{frame: 34, do: tapCellShot(1, 1)},
+			{frame: 50, shot: "02-picked-up"},
+			{frame: 58, do: tapCellShot(1, 2)},
+			{frame: 95, shot: "03-black-turn"},
+			{frame: 100, do: tapCellShot(2, 3)},
+			{frame: 116, shot: "04-black-picked-up"},
+			{frame: 124, do: tapCellShot(1, 2)},
+			{frame: 160, shot: "05-black-captured"},
 		}
 	} else if *scene == "play" && *mode == "puzzles" {
 		g = game.NewInMode(game.ModePuzzle, chess.Rook)
