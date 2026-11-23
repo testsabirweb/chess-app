@@ -10,3 +10,7 @@ web/wasm_exec.js
 
 # scripted screenshots from `make shots`
 shots/
+
+# binaries from `go build`
+/genpuzzles
+/shot
