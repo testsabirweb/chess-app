@@ -35,6 +35,11 @@ rough ones, in the session only (see open question 1).
 away-from-the-app advice (A0, no code), levels for the older games (A1), the today trail (A2) and the
 reward changes (A3).
 
+**Review follow-ups applied:** the home layout test now includes the puzzle mode; the puzzle tier goes
+down after two rough puzzles (three or more misses) in a row, matching the plan; a move that is not a
+check now makes the black king pulse; and there are tests that an alternative forced first move in a
+mate in two is accepted while a check that lets the king escape is not.
+
 The board stays 5x5. It is the board he knows, the squares stay large for small fingers, and every
 bank puzzle fits on it; `layout.Compute` already takes the board size, so an 8x8 mode is possible
 later without rework, but there is no need for one now.

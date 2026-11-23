@@ -42,8 +42,8 @@ go back to the star game.
 - **Checkmate** (the crown button) — start with "find a check", then mate in one,
   then mate in one where a tempting check is not mate (the king escapes to a green
   square, then the move is taken back), then mate in two, where the app plays
-  black's reply. Three clean puzzles in a row move him up a step; three rough ones
-  move him back down. After two misses the right piece glows; after three, its
+  black's reply. Three clean puzzles in a row move him up a step; two rough
+  puzzles (three or more misses) in a row move him back down. After two misses the right piece glows; after three, its
   square does. Wrong moves are always taken back and never lose a sticker.
 - **Pawn Wars** (the handshake button) — two players, one phone: three pawns
   each, the child white at the bottom and a grown-up black from the other side.
@@ -67,7 +67,7 @@ go back to the star game.
 | Pieces dealt by the "own pieces" games | `beginnerPieces` in `internal/game/mode.go` |
 | Pawn Wars files and pawns a side | `pawnWarsFiles` in `internal/game/pawnwars.go` |
 | How long "Black wins!" stays up | `pawnWarsBlackWinShow` in `internal/game/pawnwars.go` |
-| Clean/rough puzzles before the puzzle tier moves | `puzzleTierUp` / `puzzleTierDown` in `internal/game/puzzle.go` |
+| Clean/rough puzzles before the puzzle tier moves | `puzzleTierUp`, `puzzleTierDown` and `puzzleRoughMisses` in `internal/game/puzzle.go` |
 | Rounds the Stay-safe warning is always shown | `safeTeachRounds` in `internal/game/play.go` |
 | Memory the sticker/emoji image cache may use | `emojiCacheBudget` in `internal/render/emoji.go` |
 | How many recent rounds avoid repeating squares | `memoryRounds` in `internal/challenge/memory.go` |

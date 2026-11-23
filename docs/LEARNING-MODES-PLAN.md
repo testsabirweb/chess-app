@@ -2,8 +2,8 @@
 
 ## Status
 
-Phases 0, 2, 3, 4, 5 and 6 are implemented (shared round kit, mode row, "Which piece?", "Collect",
-"Stay safe"). Phase 7 (Pawn Wars) is still to do.
+All phases are implemented: the shared round kit, the mode row, "Which piece?", "Collect", "Stay safe"
+and Pawn Wars. Later work (checkmate puzzles, the focus changes) is in `FOCUS-AND-PUZZLES-PLAN.md`.
 
 **Phase 5 (Catch the pawns) was merged into phase 4**: it played almost exactly like collecting stars,
 so there is one "Collect" button whose rounds alternate between stars and black pawns (see

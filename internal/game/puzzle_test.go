@@ -113,6 +113,9 @@ func TestPuzzleWrongMoveIsTakenBack(t *testing.T) {
 	if len(g.Stickers()) != 0 {
 		t.Fatal("a wrong move won a sticker")
 	}
+	if s.kingPulseT <= 0 {
+		t.Fatal("the king was not pointed at after a move that was not a check")
+	}
 }
 
 // A check that is not mate plays out: the king escapes to a square that glows,
@@ -183,8 +186,14 @@ func TestPuzzleTierProgression(t *testing.T) {
 	if s.tier != puzzles.Mate1 {
 		t.Fatalf("after %d clean puzzles tier = %s, want m1", puzzleTierUp, s.tier)
 	}
+	// One or two misses is a normal round and must not count as rough.
+	s.noteResult(1)
+	s.noteResult(2)
+	if s.rough != 0 {
+		t.Fatalf("a round with one or two misses counted as rough")
+	}
 	for i := 0; i < puzzleTierDown; i++ {
-		s.noteResult(2)
+		s.noteResult(3)
 	}
 	if s.tier != puzzles.Check {
 		t.Fatalf("after %d rough puzzles tier = %s, want check", puzzleTierDown, s.tier)
@@ -192,7 +201,7 @@ func TestPuzzleTierProgression(t *testing.T) {
 	// It never leaves the ends of the list.
 	s.tier = puzzles.Check
 	for i := 0; i < 10; i++ {
-		s.noteResult(2)
+		s.noteResult(3)
 	}
 	if s.tier != puzzles.Check {
 		t.Fatalf("tier went below the first tier: %s", s.tier)
@@ -235,5 +244,81 @@ func TestPuzzleBagHasNoRepeats(t *testing.T) {
 			t.Fatalf("puzzle %d repeated before the bag was empty", i)
 		}
 		seen[key] = true
+	}
+}
+
+// forcedCheck reports whether white's move m gives check and every black reply
+// allows a mate. escaping is true when at least one reply slips out.
+func forcedCheck(b *chess.Board, m chess.Move) (forced, escaping bool) {
+	after := b.After(m)
+	if !after.InCheck(chess.Black) || after.Checkmate(chess.Black) {
+		return false, false
+	}
+	for _, r := range after.LegalMovesFor(chess.Black) {
+		if len(puzzles.MateMoves(after.After(r), chess.White)) == 0 {
+			return false, true
+		}
+	}
+	return true, false
+}
+
+func findMateTwo(t *testing.T, want func(*chess.Board, chess.Move) bool) (puzzles.Puzzle, chess.Move, bool) {
+	t.Helper()
+	for _, p := range puzzles.ByTier()[puzzles.Mate2] {
+		for _, m := range p.Board.LegalMovesFor(chess.White) {
+			if m.From == p.Solution.From && m.To == p.Solution.To {
+				continue
+			}
+			if want(p.Board, m) {
+				return p, m, true
+			}
+		}
+	}
+	return puzzles.Puzzle{}, chess.Move{}, false
+}
+
+// Any first move that checks and leaves black no escape is right, not just the
+// one the bank happens to record. The alternative path must reach stage two.
+func TestPuzzleMateTwoAcceptsAnotherForcedFirstMove(t *testing.T) {
+	p, m, ok := findMateTwo(t, func(b *chess.Board, m chess.Move) bool {
+		forced, _ := forcedCheck(b, m)
+		return forced
+	})
+	if !ok {
+		t.Skip("no mate-in-two puzzle in the bank has a second forced first move")
+	}
+	g := testGame()
+	s := newTestPuzzleScene(g, p)
+	playMove(t, s, g, m)
+	if s.stage != 2 {
+		t.Fatalf("stage = %d after a forced first move, want 2", s.stage)
+	}
+	mates := puzzles.MateMoves(s.board, chess.White)
+	if len(mates) == 0 {
+		t.Fatal("no mate after black's reply")
+	}
+	playMove(t, s, g, mates[0])
+	if got := len(g.Stickers()); got != 1 {
+		t.Fatalf("got %d stickers, want 1", got)
+	}
+}
+
+// A check that lets the king step out must not reach stage two.
+func TestPuzzleMateTwoRejectsAnEscapingCheck(t *testing.T) {
+	p, m, ok := findMateTwo(t, func(b *chess.Board, m chess.Move) bool {
+		_, escaping := forcedCheck(b, m)
+		return escaping
+	})
+	if !ok {
+		t.Skip("no mate-in-two puzzle in the bank has an escaping check")
+	}
+	g := testGame()
+	s := newTestPuzzleScene(g, p)
+	playMove(t, s, g, m)
+	if s.stage != 1 || s.wrongs != 1 {
+		t.Fatalf("stage=%d wrongs=%d, want 1 and 1", s.stage, s.wrongs)
+	}
+	if !samePosition(s.board, p.Board) {
+		t.Fatal("the escaping check was not taken back")
 	}
 }

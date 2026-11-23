@@ -23,10 +23,15 @@ const (
 	puzzleShowDur = 1.4
 	// puzzleEscapeGlow is the green square shown for the king's way out.
 	puzzleFlashDur = 1.0
-	// puzzleTierUp is how many clean solves in a row move him up a tier, and
-	// puzzleTierDown how many rough puzzles in a row move him back down.
+	// puzzleTierUp is how many clean solves in a row move him up a tier.
+	// puzzleTierDown is how many rough puzzles in a row move him back down, a
+	// rough puzzle being one that took three or more misses. Two, as the plan
+	// says: three clean puzzles up, two really rough ones back.
 	puzzleTierUp   = 3
-	puzzleTierDown = 3
+	puzzleTierDown = 2
+	// puzzleRoughMisses is the number of misses that makes a puzzle count as
+	// rough for moving down.
+	puzzleRoughMisses = 3
 )
 
 type puzzleState int
@@ -80,12 +85,16 @@ type PuzzleScene struct {
 	wobbleT   float64
 	wobbleAmp float64
 
-	checkT   float64
-	checkSq  chess.Square
-	mateT    float64
-	mateFrom chess.Square
-	mateSq   chess.Square
-	fadeT    float64
+	checkT  float64
+	checkSq chess.Square
+	// kingPulseT draws attention back to the king after a move that was not
+	// even a check: the answer was to attack the king, so that is what should
+	// catch the eye.
+	kingPulseT float64
+	mateT      float64
+	mateFrom   chess.Square
+	mateSq     chess.Square
+	fadeT      float64
 }
 
 func NewPuzzleScene(g *Game) *PuzzleScene {
@@ -116,6 +125,7 @@ func (s *PuzzleScene) loadPuzzle(p puzzles.Puzzle) {
 	s.showT = 0
 	s.checkT = 0
 	s.mateT = 0
+	s.kingPulseT = 0
 	s.fadeT = 0
 	s.hopTo = chess.Square{}
 	s.after = nil
@@ -156,6 +166,9 @@ func (s *PuzzleScene) Update(ctx *Context) error {
 	}
 	if s.mateT > 0 {
 		s.mateT -= ctx.DT
+	}
+	if s.kingPulseT > 0 {
+		s.kingPulseT -= ctx.DT
 	}
 	if s.fadeT > 0 {
 		s.fadeT -= ctx.DT
@@ -387,6 +400,8 @@ func (s *PuzzleScene) showEscapeAt(ctx *Context, m layout.Metrics, sq chess.Squa
 // fail takes a move back after a short pause, with a wobble on the square.
 func (s *PuzzleScene) fail(ctx *Context, m layout.Metrics, sq chess.Square, green bool) {
 	s.wrongs++
+	// The king did not move, so point at it: the aim was to attack it.
+	s.kingPulseT = puzzleFlashDur
 	s.escape = sq
 	s.escapeOK = green
 	s.showT = puzzleShowDur / 2
@@ -431,7 +446,7 @@ func (s *PuzzleScene) noteResult(wrongs int) {
 	case wrongs == 0:
 		s.clean++
 		s.rough = 0
-	case wrongs >= 2:
+	case wrongs >= puzzleRoughMisses:
 		s.rough++
 		s.clean = 0
 	default:
@@ -528,6 +543,15 @@ func (s *PuzzleScene) Draw(dst *ebiten.Image, ctx *Context) {
 	}
 
 	s.drawHelp(dst, m)
+
+	if s.kingPulseT > 0 {
+		if ksq, ok := s.board.KingSquare(chess.Black); ok {
+			cr := m.CellRect(int(ksq.File), int(ksq.Rank))
+			cx, cy := cr.Center()
+			pulse := 0.55 + 0.45*math.Sin(s.kingPulseT*14)
+			render.FillRingSoft(dst, cx, cy, m.Cell*0.44, render.Alpha(render.ColorStarGlow, 0.7*pulse))
+		}
+	}
 
 	if s.checkT > 0 {
 		cr := m.CellRect(int(s.checkSq.File), int(s.checkSq.Rank))
