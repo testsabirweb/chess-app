@@ -38,8 +38,6 @@ func ModeByName(name string) (Mode, bool) {
 		return ModeSafe, true
 	case "puzzles":
 		return ModePuzzle, true
-	case "pawnwars":
-		return ModePawnWars, true
 	}
 	return ModeStar, false
 }

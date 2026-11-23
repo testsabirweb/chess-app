@@ -59,8 +59,8 @@ func playMove(t *testing.T, s *PuzzleScene, g *Game, m chess.Move) {
 	settlePuzzle(t, s, g)
 }
 
-// Each tier's stored solution must win, and mate in two needs the child's
-// second move after black's reply.
+// Every tier can be solved: the stored solution for find-a-check, and the next
+// forced move at each stage of a mate.
 func TestPuzzleTiersCanBeSolved(t *testing.T) {
 	byTier := puzzles.ByTier()
 	for _, tier := range puzzles.Tiers {
@@ -68,16 +68,18 @@ func TestPuzzleTiersCanBeSolved(t *testing.T) {
 		t.Run(string(tier), func(t *testing.T) {
 			g := testGame()
 			s := newTestPuzzleScene(g, p)
-			playMove(t, s, g, p.Solution)
-			if tier == puzzles.Mate2 {
-				if s.stage != 2 {
-					t.Fatalf("stage = %d after the first move, want 2", s.stage)
+			depth := mateDepth(tier)
+			if depth == 0 {
+				playMove(t, s, g, p.Solution)
+			} else {
+				for len(g.Stickers()) == 0 {
+					remaining := depth - s.stage + 1
+					m, ok := puzzles.MateMove(s.board, chess.White, remaining)
+					if !ok {
+						t.Fatalf("no move for stage %d (mate in %d)", s.stage, remaining)
+					}
+					playMove(t, s, g, m)
 				}
-				mates := puzzles.MateMoves(s.board, chess.White)
-				if len(mates) == 0 {
-					t.Fatal("no mate after black's reply")
-				}
-				playMove(t, s, g, mates[0])
 			}
 			if got := len(g.Stickers()); got != 1 {
 				t.Fatalf("got %d stickers, want exactly 1", got)
@@ -206,11 +208,12 @@ func TestPuzzleTierProgression(t *testing.T) {
 	if s.tier != puzzles.Check {
 		t.Fatalf("tier went below the first tier: %s", s.tier)
 	}
-	s.tier = puzzles.Mate2
+	last := puzzles.Tiers[len(puzzles.Tiers)-1]
+	s.tier = last
 	for i := 0; i < 10; i++ {
 		s.noteResult(0)
 	}
-	if s.tier != puzzles.Mate2 {
+	if s.tier != last {
 		t.Fatalf("tier went past the last tier: %s", s.tier)
 	}
 }
@@ -320,5 +323,48 @@ func TestPuzzleMateTwoRejectsAnEscapingCheck(t *testing.T) {
 	}
 	if !samePosition(s.board, p.Board) {
 		t.Fatal("the escaping check was not taken back")
+	}
+}
+
+// A mate in three does not move on for a quiet first move.
+func TestPuzzleMateThreeRejectsAQuietMove(t *testing.T) {
+	p := puzzles.ByTier()[puzzles.Mate3][0]
+	g := testGame()
+	s := newTestPuzzleScene(g, p)
+	var quiet *chess.Move
+	for _, m := range s.board.LegalMovesFor(chess.White) {
+		if !s.board.After(m).InCheck(chess.Black) {
+			mv := m
+			quiet = &mv
+			break
+		}
+	}
+	if quiet == nil {
+		t.Skip("no quiet move in this position")
+	}
+	playMove(t, s, g, *quiet)
+	if s.stage != 1 || s.wrongs != 1 {
+		t.Fatalf("stage=%d wrongs=%d, want 1 and 1", s.stage, s.wrongs)
+	}
+	if !samePosition(s.board, p.Board) {
+		t.Fatal("the quiet move was not taken back")
+	}
+}
+
+// The help for a mate in three names a move that really keeps the mate.
+func TestPuzzleMateThreeHelp(t *testing.T) {
+	p := puzzles.ByTier()[puzzles.Mate3][0]
+	g := testGame()
+	s := newTestPuzzleScene(g, p)
+	from, to, ok := s.answer()
+	if !ok {
+		t.Fatal("no help for a mate in three")
+	}
+	if !s.board.CanMove(from, to) {
+		t.Fatalf("help suggests an illegal move %v-%v", from, to)
+	}
+	ok, _ = puzzles.ContinuesMate(s.board, chess.White, chess.Move{From: from, To: to}, 2)
+	if !ok {
+		t.Fatal("help suggests a move that loses the mate")
 	}
 }

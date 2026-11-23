@@ -41,16 +41,17 @@ var materials = []material{
 // targets is how many puzzles of each tier to aim for. These counts keep the
 // bank a few kilobytes.
 var targets = map[puzzles.Tier]int{
-	puzzles.Check:     60,
-	puzzles.Mate1:     100,
-	puzzles.Mate1Trap: 80,
-	puzzles.Mate2:     60,
+	puzzles.Check:     200,
+	puzzles.Mate1:     300,
+	puzzles.Mate1Trap: 250,
+	puzzles.Mate2:     200,
+	puzzles.Mate3:     120,
 }
 
 // generateOrder runs the hardest, rarest kinds first, so a position that could
 // be more than one tier is claimed by the one that is harder to find.
 var generateOrder = []puzzles.Tier{
-	puzzles.Mate2, puzzles.Mate1Trap, puzzles.Mate1, puzzles.Check,
+	puzzles.Mate3, puzzles.Mate2, puzzles.Mate1Trap, puzzles.Mate1, puzzles.Check,
 }
 
 const maxAttempts = 400000
@@ -221,6 +222,18 @@ func candidate(b *chess.Board, tier puzzles.Tier, rng *rand.Rand) (chess.Move, b
 		if len(mates) == 1 && len(checks) >= 2 {
 			return mates[0], true
 		}
+	case puzzles.Mate3:
+		if len(mates) != 0 || puzzles.ForcedMate(b, white, 2) {
+			return chess.Move{}, false
+		}
+		m, ok := puzzles.MateMove(b, white, 3)
+		if !ok {
+			return chess.Move{}, false
+		}
+		if continues, _ := puzzles.ContinuesMate(b, white, m, 2); !continues {
+			return chess.Move{}, false
+		}
+		return m, true
 	case puzzles.Mate2:
 		if len(mates) != 0 {
 			return chess.Move{}, false

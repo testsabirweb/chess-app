@@ -165,6 +165,35 @@ func tapPuzzleTo(g *game.Game) {
 	}
 }
 
+// puzzleBest is the next move of the forced mate for the current puzzle stage.
+func puzzleBest(g *game.Game) (chess.Move, bool) {
+	info, ok := g.PuzzleInfo()
+	if !ok {
+		return chess.Move{}, false
+	}
+	depth := 1
+	switch info.Tier {
+	case puzzles.Mate2:
+		depth = 2
+	case puzzles.Mate3:
+		depth = 3
+	}
+	remaining := depth - info.Stage + 1
+	return puzzles.MateMove(info.Board, chess.White, remaining)
+}
+
+func tapPuzzleBestFrom(g *game.Game) {
+	if m, ok := puzzleBest(g); ok {
+		g.TapSquare(int(m.From.File), int(m.From.Rank))
+	}
+}
+
+func tapPuzzleBestTo(g *game.Game) {
+	if m, ok := puzzleBest(g); ok {
+		g.TapSquare(int(m.To.File), int(m.To.Rank))
+	}
+}
+
 // tapHotSquare picks the piece up and taps a square the guard attacks, to show
 // the refusal.
 func tapHotSquare(g *game.Game) {
@@ -231,7 +260,7 @@ func pieceByName(n string) chess.PieceType {
 func main() {
 	out := flag.String("out", "shots", "directory for PNGs")
 	scene := flag.String("scene", "home", "home or play")
-	mode := flag.String("mode", "star", "game mode for the play scene: star, which, treasure, safe, puzzles, pawnwars")
+	mode := flag.String("mode", "star", "game mode for the play scene: star, which, treasure, safe, puzzles")
 	piece := flag.String("piece", "rook", "piece for the play scene")
 	skip := flag.Int("skip", 0, "skip this many generated puzzles first")
 	seed := flag.Int("stickers", 0, "pre-seed this many collected stickers")
@@ -265,20 +294,26 @@ func main() {
 			{frame: 200, shot: "06-reward-pop"},
 			{frame: 225, shot: "07-reward-fly"},
 		}
-	} else if *scene == "play" && *mode == "pawnwars" {
-		g = game.NewInMode(game.ModePawnWars, chess.Rook)
+	} else if *scene == "play" && *mode == "puzzles3" {
+		g = game.NewInMode(game.ModePuzzle, chess.Rook)
 		g.SetHintDelay(*hintDelay)
 		g.SeedStickers(*seed)
+		g.SetPuzzleTier(puzzles.Mate3)
 		steps = []step{
-			{frame: 30, shot: "01-white-turn"},
-			{frame: 34, do: tapCellShot(1, 1)},
-			{frame: 50, shot: "02-picked-up"},
-			{frame: 58, do: tapCellShot(1, 2)},
-			{frame: 95, shot: "03-black-turn"},
-			{frame: 100, do: tapCellShot(2, 3)},
-			{frame: 116, shot: "04-black-picked-up"},
-			{frame: 124, do: tapCellShot(1, 2)},
-			{frame: 160, shot: "05-black-captured"},
+			{frame: 30, shot: "01-idle"},
+			{frame: 34, do: tapPuzzleBestFrom},
+			{frame: 50, shot: "02-first-piece"},
+			{frame: 58, do: tapPuzzleBestTo},
+			{frame: 120, shot: "03-first-move-and-reply"},
+			{frame: 130, do: tapPuzzleBestFrom},
+			{frame: 150, shot: "04-second-piece"},
+			{frame: 158, do: tapPuzzleBestTo},
+			{frame: 220, shot: "05-second-move-and-reply"},
+			{frame: 230, do: tapPuzzleBestFrom},
+			{frame: 250, shot: "06-third-piece"},
+			{frame: 258, do: tapPuzzleBestTo},
+			{frame: 300, shot: "07-checkmate"},
+			{frame: 340, shot: "08-reward"},
 		}
 	} else if *scene == "play" && *mode == "puzzles" {
 		g = game.NewInMode(game.ModePuzzle, chess.Rook)

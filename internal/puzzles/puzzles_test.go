@@ -150,3 +150,39 @@ func TestBankIsReadable(t *testing.T) {
 		t.Fatalf("line looks wrong: %q", Encode(Bank()[0]))
 	}
 }
+
+// The mate-in-three solver must agree with hand-made positions.
+func TestForcedMateDepths(t *testing.T) {
+	// K+Q v K: queen b4 -> b1 is mate in one; before it, white has mate in one.
+	b := chess.NewBoard(5, 5)
+	b.Set(chess.Sq(0, 0), chess.Piece{Type: chess.King, Color: chess.Black})
+	b.Set(chess.Sq(1, 4), chess.Piece{Type: chess.Queen, Color: chess.White})
+	b.Set(chess.Sq(2, 2), chess.Piece{Type: chess.King, Color: chess.White})
+	if !ForcedMate(b, chess.White, 1) {
+		t.Fatal("queen b4 should mate in one by b1")
+	}
+	if !ForcedMate(b, chess.White, 3) {
+		t.Fatal("a mate in one is also reachable within three moves")
+	}
+	if ForcedMate(b, chess.Black, 1) {
+		t.Fatal("the black king has no mate of its own")
+	}
+}
+
+// Every mate-in-three in the bank is really forced in three, and not sooner.
+func TestBankMateThree(t *testing.T) {
+	for _, p := range ByTier()[Mate3] {
+		if err := p.Valid(); err != nil {
+			t.Fatalf("%s: %v", Encode(p), err)
+		}
+		if len(MateMoves(p.Board, chess.White)) != 0 {
+			t.Fatalf("%s: has a mate in one", Encode(p))
+		}
+		if ForcedMate(p.Board, chess.White, 2) {
+			t.Fatalf("%s: has a mate in two", Encode(p))
+		}
+		if !ForcedMate(p.Board, chess.White, 3) {
+			t.Fatalf("%s: not a forced mate in three", Encode(p))
+		}
+	}
+}

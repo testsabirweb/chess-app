@@ -35,7 +35,6 @@ var uiEmoji = map[string]bool{
 	"2753":  true, // question mark: Which piece?
 	"1f48e": true, // gem: Collect the stars
 	"1f6e1": true, // shield: Stay safe
-	"1f91d": true, // handshake: Pawn Wars
 	"1f451": true, // crown: Checkmate puzzles
 }
 

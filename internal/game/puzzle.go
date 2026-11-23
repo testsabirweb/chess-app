@@ -92,9 +92,16 @@ type PuzzleScene struct {
 	// catch the eye.
 	kingPulseT float64
 	mateT      float64
-	mateFrom   chess.Square
-	mateSq     chess.Square
-	fadeT      float64
+	// helpCache remembers the answer for one position, so drawing the help
+	// every frame does not re-run the mate search.
+	helpKey   string
+	helpFrom  chess.Square
+	helpTo    chess.Square
+	helpOK    bool
+	helpTried bool
+	mateFrom  chess.Square
+	mateSq    chess.Square
+	fadeT     float64
 }
 
 func NewPuzzleScene(g *Game) *PuzzleScene {
@@ -127,6 +134,7 @@ func (s *PuzzleScene) loadPuzzle(p puzzles.Puzzle) {
 	s.mateT = 0
 	s.kingPulseT = 0
 	s.fadeT = 0
+	s.clearHelp()
 	s.hopTo = chess.Square{}
 	s.after = nil
 }
@@ -273,9 +281,11 @@ func (s *PuzzleScene) play(ctx *Context, m layout.Metrics, to chess.Square) {
 	s.base = s.board.Clone()
 	s.hasSel = false
 	s.hintT = 0
+	s.clearHelp()
 	s.captureSound(ctx, to)
+	mv := chess.Move{From: from, To: to}
 	s.startHop(ctx, m, from, to, pc, func(ctx *Context, m layout.Metrics) {
-		s.judge(ctx, m)
+		s.judge(ctx, m, mv)
 	})
 }
 
@@ -299,8 +309,22 @@ func (s *PuzzleScene) startHop(ctx *Context, m layout.Metrics, from, to chess.Sq
 	s.state = puzzleAnimating
 }
 
+// mateDepth is how many white moves the tier's mate takes; 0 for the
+// find-a-check tier.
+func mateDepth(t puzzles.Tier) int {
+	switch t {
+	case puzzles.Mate3:
+		return 3
+	case puzzles.Mate2:
+		return 2
+	case puzzles.Mate1, puzzles.Mate1Trap:
+		return 1
+	}
+	return 0
+}
+
 // judge looks at the position after the player's move and decides what to say.
-func (s *PuzzleScene) judge(ctx *Context, m layout.Metrics) {
+func (s *PuzzleScene) judge(ctx *Context, m layout.Metrics, mv chess.Move) {
 	black := chess.Black
 	if s.board.Checkmate(black) {
 		s.win(ctx, m)
@@ -322,46 +346,36 @@ func (s *PuzzleScene) judge(ctx *Context, m layout.Metrics) {
 			return
 		}
 		s.fail(ctx, m, chess.Square{}, false)
-	case puzzles.Mate2:
-		if s.stage == 2 {
+	case puzzles.Mate2, puzzles.Mate3:
+		depth := mateDepth(s.tier)
+		if s.stage >= depth {
+			// The last move was the one that had to mate.
 			s.fail(ctx, m, chess.Square{}, false)
 			return
 		}
 		if !s.board.InCheck(black) {
+			// A forcing mate is a run of checks; a quiet move is not one.
 			s.fail(ctx, m, chess.Square{}, false)
 			return
 		}
-		replies := s.board.LegalMovesFor(black)
-		good, bad := -1, -1
-		for i, r := range replies {
-			if len(puzzles.MateMoves(s.board.After(r), chess.White)) > 0 {
-				if good < 0 {
-					good = i
-				}
-			} else if bad < 0 {
-				bad = i
-			}
-		}
-		if bad >= 0 {
+		ok, escape := puzzles.ContinuesMate(s.base, chess.White, mv, depth-s.stage)
+		if !ok {
 			// One reply slips out: play it and show where the king went.
-			r := replies[bad]
-			s.startHop(ctx, m, r.From, r.To, s.board.At(r.From), func(ctx *Context, m layout.Metrics) {
-				s.showEscapeAt(ctx, m, r.To, true)
+			s.startHop(ctx, m, escape.From, escape.To, s.board.At(escape.From), func(ctx *Context, m layout.Metrics) {
+				s.showEscapeAt(ctx, m, escape.To, true)
 			})
 			return
 		}
-		if good < 0 {
-			s.fail(ctx, m, chess.Square{}, false)
+		replies := s.board.LegalMovesFor(black)
+		if len(replies) == 0 {
+			s.win(ctx, m)
 			return
 		}
-		// The first move is right: black replies, then it is his turn to mate.
-		r := replies[good]
-		if n := len(replies); n > 1 {
-			r = replies[ctx.Rand.IntN(n)]
-		}
+		r := replies[ctx.Rand.IntN(len(replies))]
 		s.startHop(ctx, m, r.From, r.To, s.board.At(r.From), func(ctx *Context, m layout.Metrics) {
-			s.stage = 2
+			s.stage++
 			s.base = s.board.Clone()
+			s.clearHelp()
 			s.sayCheck()
 		})
 	}
@@ -418,6 +432,7 @@ func (s *PuzzleScene) revert() {
 	s.hintT = 0
 	s.state = puzzleIdle
 	s.fadeT = 0.22
+	s.clearHelp()
 }
 
 func (s *PuzzleScene) win(ctx *Context, m layout.Metrics) {
@@ -488,6 +503,8 @@ func tierTitle(t puzzles.Tier) string {
 		return "Mate in 1"
 	case puzzles.Mate2:
 		return "Mate in 2"
+	case puzzles.Mate3:
+		return "Mate in 3"
 	}
 	return "Puzzles"
 }
@@ -597,34 +614,36 @@ func (s *PuzzleScene) drawHelp(dst *ebiten.Image, m layout.Metrics) {
 	}
 }
 
-// answer is a move that solves the current stage: a mate in a mating tier, a
-// check in the check tier, and a forced first move in a mate in two.
+// answer is a move that solves the current stage: a check in the check tier,
+// and the next move of the forced mate in the mating tiers. It is cached for a
+// position, because the mate-in-three search is not something to run on every
+// frame the help is on show.
 func (s *PuzzleScene) answer() (from, to chess.Square, ok bool) {
-	white, black := chess.White, chess.Black
-	for _, m := range puzzles.MateMoves(s.board, white) {
-		return m.From, m.To, true
+	key := puzzles.PositionKey(s.board) + "|" + string(rune('0'+s.stage))
+	if s.helpTried && s.helpKey == key {
+		return s.helpFrom, s.helpTo, s.helpOK
 	}
+	s.helpTried, s.helpKey = true, key
+	s.helpOK = false
+
+	white := chess.White
 	if s.tier == puzzles.Check {
 		for _, m := range puzzles.CheckMoves(s.board, white) {
-			return m.From, m.To, true
+			s.helpFrom, s.helpTo, s.helpOK = m.From, m.To, true
+			return s.helpFrom, s.helpTo, true
 		}
+		return chess.Square{}, chess.Square{}, false
 	}
-	if s.tier == puzzles.Mate2 && s.stage == 1 {
-		for _, m := range puzzles.CheckMoves(s.board, white) {
-			after := s.board.After(m)
-			forced := true
-			for _, r := range after.LegalMovesFor(black) {
-				if len(puzzles.MateMoves(after.After(r), white)) == 0 {
-					forced = false
-				}
-			}
-			if forced {
-				return m.From, m.To, true
-			}
-		}
+	remaining := mateDepth(s.tier) - s.stage + 1
+	if m, found := puzzles.MateMove(s.board, white, remaining); found {
+		s.helpFrom, s.helpTo, s.helpOK = m.From, m.To, true
+		return s.helpFrom, s.helpTo, true
 	}
 	return chess.Square{}, chess.Square{}, false
 }
+
+// clearHelp forgets the cached answer; a new position or stage needs its own.
+func (s *PuzzleScene) clearHelp() { s.helpTried, s.helpOK = false, false }
 
 func (s *PuzzleScene) hints() []render.Hint {
 	s.hintBuf = s.hintBuf[:0]

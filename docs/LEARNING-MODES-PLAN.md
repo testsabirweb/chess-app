@@ -2,8 +2,10 @@
 
 ## Status
 
-All phases are implemented: the shared round kit, the mode row, "Which piece?", "Collect", "Stay safe"
-and Pawn Wars. Later work (checkmate puzzles, the focus changes) is in `FOCUS-AND-PUZZLES-PLAN.md`.
+All phases were implemented: the shared round kit, the mode row, "Which piece?", "Collect", "Stay
+safe" and Pawn Wars. Pawn Wars was later removed at the parent's request; the mode row now offers
+"Which piece?", "Collect", "Stay safe" and "Checkmate". Later work (checkmate puzzles, the focus
+changes) is in `FOCUS-AND-PUZZLES-PLAN.md`.
 
 **Phase 5 (Catch the pawns) was merged into phase 4**: it played almost exactly like collecting stars,
 so there is one "Collect" button whose rounds alternate between stars and black pawns (see

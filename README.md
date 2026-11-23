@@ -41,15 +41,13 @@ go back to the star game.
   himself. Every other round needs a detour. Pick it, then choose a piece card.
 - **Checkmate** (the crown button) — start with "find a check", then mate in one,
   then mate in one where a tempting check is not mate (the king escapes to a green
-  square, then the move is taken back), then mate in two, where the app plays
-  black's reply. Three clean puzzles in a row move him up a step; two rough
-  puzzles (three or more misses) in a row move him back down. After two misses the right piece glows; after three, its
-  square does. Wrong moves are always taken back and never lose a sticker.
-- **Pawn Wars** (the handshake button) — two players, one phone: three pawns
-  each, the child white at the bottom and a grown-up black from the other side.
-  Reach the far rank or take every pawn to win; if the player whose turn it is
-  cannot move, everybody wins. White's win earns a sticker; black's win is a
-  banner and confetti on black's side, with no sticker, then a fresh game.
+  square, then the move is taken back), then mate in two and mate in three,
+  where the app plays black's replies. Three clean puzzles in a row move him up
+  a step; two rough puzzles (three or more misses) in a row move him back down.
+  After two misses the right piece glows; after three, its square does. Wrong
+  moves are always taken back and never lose a sticker. The 1,070 positions are
+  dealt from a shuffled bag per tier, so a puzzle does not come round again
+  until its tier is used up.
 - **Which piece?** — two or three pieces and a star. Exactly one piece can reach
   the star in a single move. Tap it to pick it up, then tap the star to move it
   there yourself. A wrong pick shows what
@@ -65,8 +63,6 @@ go back to the star game.
 | How far the star can be planted | `maxJourney` in `internal/game/play.go` |
 | Stickers per celebration | `milestoneEvery` in `internal/game/kit.go` |
 | Pieces dealt by the "own pieces" games | `beginnerPieces` in `internal/game/mode.go` |
-| Pawn Wars files and pawns a side | `pawnWarsFiles` in `internal/game/pawnwars.go` |
-| How long "Black wins!" stays up | `pawnWarsBlackWinShow` in `internal/game/pawnwars.go` |
 | Clean/rough puzzles before the puzzle tier moves | `puzzleTierUp`, `puzzleTierDown` and `puzzleRoughMisses` in `internal/game/puzzle.go` |
 | Rounds the Stay-safe warning is always shown | `safeTeachRounds` in `internal/game/play.go` |
 | Memory the sticker/emoji image cache may use | `emojiCacheBudget` in `internal/render/emoji.go` |

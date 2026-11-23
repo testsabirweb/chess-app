@@ -27,13 +27,19 @@ example, "no saving between launches"), it is listed under **Open questions** ra
 
 **Part B is implemented**: the chess engine has check, legal moves, checkmate and stalemate; the
 puzzle bank is built offline by `make puzzles` (`cmd/genpuzzles`) and embedded from
-`internal/puzzles/bank.txt`; the puzzle game is on the home screen (crown button) with all four
-tiers, including mate in two. The puzzle tier moves up after three clean rounds and down after three
-rough ones, in the session only (see open question 1).
+`internal/puzzles/bank.txt`; the puzzle game is on the home screen (crown button) with all five
+tiers, including mate in three. The bank holds 1,070 positions (about 56 KB) and each tier is dealt
+from a shuffled bag, so a puzzle does not repeat until its tier is used up. The puzzle tier moves up
+after three clean rounds and down after two rough ones (three or more misses), in the session only
+(see open question 1).
 
-**Part A:** A4 (Pawn Wars) is implemented too: the handshake button opens it. Still open are
-away-from-the-app advice (A0, no code), levels for the older games (A1), the today trail (A2) and the
-reward changes (A3).
+**Part A:** Pawn Wars (A4) was implemented, then removed at the parent's request in favour of the
+mate-in-three tier. Still open are away-from-the-app advice (A0, no code), levels for the older games
+(A1), the today trail (A2) and the reward changes (A3).
+
+**Imported puzzles were considered.** The Lichess puzzle set is CC0, but it is full 8x8 chess with
+castling, promotion and en passant, which this engine and board do not have. Generating many positions
+offline instead keeps every puzzle verifiable against the engine the app actually plays.
 
 **Review follow-ups applied:** the home layout test now includes the puzzle mode; the puzzle tier goes
 down after two rough puzzles (three or more misses) in a row, matching the plan; a move that is not a

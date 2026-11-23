@@ -15,7 +15,7 @@ shots:
 	go run ./cmd/shot -out shots/treasure   -scene play -mode treasure -piece queen -stickers 4 -w 393 -h 873 -scale 2.75
 	go run ./cmd/shot -out shots/safe       -scene play -mode safe -piece rook -stickers 4 -w 393 -h 873 -scale 2.75
 	go run ./cmd/shot -out shots/puzzles    -scene play -mode puzzles -stickers 4 -w 393 -h 873 -scale 2.75
-	go run ./cmd/shot -out shots/pawnwars   -scene play -mode pawnwars -stickers 4 -w 393 -h 873 -scale 2.75
+	go run ./cmd/shot -out shots/puzzles3   -scene play -mode puzzles3 -stickers 4 -w 393 -h 873 -scale 2.75
 	go run ./cmd/shot -out shots/tablet     -scene play -piece rook -stickers 4 -w 800 -h 1280 -scale 2.0
 	go run ./cmd/shot -out shots/landscape  -scene play -piece rook -stickers 4 -w 1280 -h 800 -scale 2.0
 	go run ./cmd/shot -out shots/small      -scene play -piece rook -stickers 4 -w 320 -h 533 -scale 1.5

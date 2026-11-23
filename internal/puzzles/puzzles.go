@@ -30,10 +30,15 @@ const (
 	// Mate2 needs two white moves: black must reply in between, and every reply
 	// leaves a mate.
 	Mate2 Tier = "m2"
+	// Mate3 needs three white moves, every reply still leaving a mate. As in
+	// mate in two, each white move before the last must be a check: a checking
+	// sequence is the kind a beginner can follow, and it keeps the search cheap
+	// enough to judge a move while it is played.
+	Mate3 Tier = "m3"
 )
 
 // Tiers lists them from the first to the hardest.
-var Tiers = []Tier{Check, Mate1, Mate1Trap, Mate2}
+var Tiers = []Tier{Check, Mate1, Mate1Trap, Mate2, Mate3}
 
 // Puzzle is one position, white to move, with the intended first move.
 type Puzzle struct {
@@ -285,6 +290,61 @@ func CheckMoves(b *chess.Board, c chess.Color) []chess.Move {
 	return out
 }
 
+// ForcedMate reports whether colour c has a forced mate in n of its own moves,
+// with each move before the last giving check. It is cheap enough to run on a
+// phone because only checking moves are tried.
+func ForcedMate(b *chess.Board, c chess.Color, n int) bool {
+	_, ok := MateMove(b, c, n)
+	return ok
+}
+
+// MateMove returns a first move of a forced mate in n, or ok=false.
+func MateMove(b *chess.Board, c chess.Color, n int) (chess.Move, bool) {
+	if n <= 0 {
+		return chess.Move{}, false
+	}
+	opp := c.Opponent()
+	for _, m := range b.LegalMovesFor(c) {
+		after := b.After(m)
+		if n == 1 {
+			if after.Checkmate(opp) {
+				return m, true
+			}
+			continue
+		}
+		if !after.InCheck(opp) {
+			continue // only a forcing sequence
+		}
+		ok := true
+		for _, r := range after.LegalMovesFor(opp) {
+			if !ForcedMate(after.After(r), c, n-1) {
+				ok = false
+				break
+			}
+		}
+		if ok {
+			return m, true
+		}
+	}
+	return chess.Move{}, false
+}
+
+// ContinuesMate reports whether c's move m keeps a forced mate in `remaining`
+// more of c's moves against every reply. If it does not, escape is a reply that
+// breaks the mate, for the board to show.
+func ContinuesMate(b *chess.Board, c chess.Color, m chess.Move, remaining int) (ok bool, escape chess.Move) {
+	after := b.After(m)
+	if after.Checkmate(c.Opponent()) {
+		return true, chess.Move{}
+	}
+	for _, r := range after.LegalMovesFor(c.Opponent()) {
+		if !ForcedMate(after.After(r), c, remaining) {
+			return false, r
+		}
+	}
+	return true, chess.Move{}
+}
+
 // Valid checks that the position is legal to show white to move, and that it is
 // the tier it claims to be. A puzzle that fails is never shipped: TestBankValid
 // runs this over every line.
@@ -343,6 +403,17 @@ func (p Puzzle) Valid() error {
 		}
 		if !falseCheck {
 			return fmt.Errorf("want at least one check that is not mate")
+		}
+	case Mate3:
+		if len(mates) != 0 || ForcedMate(b, wc, 2) {
+			return fmt.Errorf("mate in three must not have a mate in one or two")
+		}
+		if !ForcedMate(b, wc, 3) {
+			return fmt.Errorf("no forced mate in three")
+		}
+		ok, _ := ContinuesMate(b, wc, p.Solution, 2)
+		if !ok {
+			return fmt.Errorf("solution does not keep the mate in three")
 		}
 	case Mate2:
 		if len(mates) != 0 {
