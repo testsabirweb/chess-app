@@ -3,6 +3,7 @@ package game
 import (
 	"github.com/testsabirweb/chess-app/internal/chess"
 	"github.com/testsabirweb/chess-app/internal/input"
+	"github.com/testsabirweb/chess-app/internal/puzzles"
 )
 
 // This file exists for the desktop screenshot tool in cmd/shot. It is a few
@@ -35,6 +36,8 @@ func ModeByName(name string) (Mode, bool) {
 		return ModeTreasure, true
 	case "safe":
 		return ModeSafe, true
+	case "puzzles":
+		return ModePuzzle, true
 	case "pawnwars":
 		return ModePawnWars, true
 	}
@@ -55,6 +58,33 @@ func (g *Game) WhichInfo() (WhichInfo, bool) {
 		return WhichInfo{}, false
 	}
 	return WhichInfo{Pieces: ws.cur.Pieces, Answer: ws.cur.Answer, Target: ws.cur.Target}, true
+}
+
+// PuzzleInfo is a snapshot of a puzzle round for the screenshot tool.
+type PuzzleInfo struct {
+	Board    *chess.Board
+	Tier     puzzles.Tier
+	Stage    int
+	Solution chess.Move
+}
+
+// PuzzleInfo reports the current puzzle, or ok=false on other scenes.
+func (g *Game) PuzzleInfo() (PuzzleInfo, bool) {
+	ps, ok := g.scene.(*PuzzleScene)
+	if !ok {
+		return PuzzleInfo{}, false
+	}
+	return PuzzleInfo{Board: ps.board, Tier: ps.tier, Stage: ps.stage, Solution: ps.cur.Solution}, true
+}
+
+// SetPuzzleTier jumps straight to a tier, so the screenshot tool can show a
+// mate in one without solving past the check tier.
+func (g *Game) SetPuzzleTier(t puzzles.Tier) {
+	if ps, ok := g.scene.(*PuzzleScene); ok {
+		ps.tier = t
+		ps.bags = map[puzzles.Tier][]puzzles.Puzzle{}
+		ps.newPuzzle()
+	}
 }
 
 // SeedStickers pre-fills the reward tray so the screenshot tool can reach the

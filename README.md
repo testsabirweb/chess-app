@@ -39,6 +39,12 @@ go back to the star game.
   it and the red squares flash. For the first five rounds the red is always shown;
   after that it only appears with the move dots, so he learns to spot the danger
   himself. Every other round needs a detour. Pick it, then choose a piece card.
+- **Checkmate** (the crown button) — start with "find a check", then mate in one,
+  then mate in one where a tempting check is not mate (the king escapes to a green
+  square, then the move is taken back), then mate in two, where the app plays
+  black's reply. Three clean puzzles in a row move him up a step; three rough ones
+  move him back down. After two misses the right piece glows; after three, its
+  square does. Wrong moves are always taken back and never lose a sticker.
 - **Which piece?** — two or three pieces and a star. Exactly one piece can reach
   the star in a single move. Tap it to pick it up, then tap the star to move it
   there yourself. A wrong pick shows what
@@ -54,6 +60,7 @@ go back to the star game.
 | How far the star can be planted | `maxJourney` in `internal/game/play.go` |
 | Stickers per celebration | `milestoneEvery` in `internal/game/kit.go` |
 | Pieces dealt by the "own pieces" games | `beginnerPieces` in `internal/game/mode.go` |
+| Clean/rough puzzles before the puzzle tier moves | `puzzleTierUp` / `puzzleTierDown` in `internal/game/puzzle.go` |
 | Rounds the Stay-safe warning is always shown | `safeTeachRounds` in `internal/game/play.go` |
 | Memory the sticker/emoji image cache may use | `emojiCacheBudget` in `internal/render/emoji.go` |
 | How many recent rounds avoid repeating squares | `memoryRounds` in `internal/challenge/memory.go` |
@@ -109,6 +116,7 @@ That installs and opens the app. Rebuild anytime with `make apk` then `make inst
 ```bash
 make test          # unit tests
 make shots         # render PNG screenshots at Edge 50 Neo metrics into shots/
+make puzzles       # rebuild the checkmate puzzle bank (offline, on the Mac)
 make bind          # rebuild native Android library (slow, first time ~minutes)
 make apk           # build debug APK (local dev)
 make apk-release   # build release APK (unsigned locally unless KEYSTORE_* env set)

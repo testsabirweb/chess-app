@@ -1,4 +1,4 @@
-.PHONY: run test shots wasm serve tools bind apk apk-release install install-release logs verify-16k clean
+.PHONY: run test shots puzzles wasm serve tools bind apk apk-release install install-release logs verify-16k clean
 
 run:
 	go run .
@@ -14,9 +14,14 @@ shots:
 	go run ./cmd/shot -out shots/which      -scene play -mode which -stickers 4 -w 393 -h 873 -scale 2.75
 	go run ./cmd/shot -out shots/treasure   -scene play -mode treasure -piece queen -stickers 4 -w 393 -h 873 -scale 2.75
 	go run ./cmd/shot -out shots/safe       -scene play -mode safe -piece rook -stickers 4 -w 393 -h 873 -scale 2.75
+	go run ./cmd/shot -out shots/puzzles    -scene play -mode puzzles -stickers 4 -w 393 -h 873 -scale 2.75
 	go run ./cmd/shot -out shots/tablet     -scene play -piece rook -stickers 4 -w 800 -h 1280 -scale 2.0
 	go run ./cmd/shot -out shots/landscape  -scene play -piece rook -stickers 4 -w 1280 -h 800 -scale 2.0
 	go run ./cmd/shot -out shots/small      -scene play -piece rook -stickers 4 -w 320 -h 533 -scale 1.5
+
+# Rebuild the checkmate puzzle bank. Run it on the Mac, never on the phone.
+puzzles:
+	go run ./cmd/genpuzzles -out internal/puzzles/bank.txt
 
 wasm:
 	GOOS=js GOARCH=wasm go build -o web/game.wasm .

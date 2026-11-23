@@ -86,6 +86,10 @@ var (
 	}
 )
 
+// ColorEscape marks the square the black king escaped to, in the puzzle game:
+// green, the opposite of the red a guard attacks.
+var ColorEscape = color.RGBA{120, 196, 96, 255}
+
 // ColorDanger tints the squares a guard attacks: a warm, soft red that sits
 // with the cream-and-green board rather than shouting over it.
 var ColorDanger = color.RGBA{214, 84, 74, 255}

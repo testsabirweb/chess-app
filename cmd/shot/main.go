@@ -18,6 +18,7 @@ import (
 	"github.com/testsabirweb/chess-app/internal/challenge"
 	"github.com/testsabirweb/chess-app/internal/chess"
 	"github.com/testsabirweb/chess-app/internal/game"
+	"github.com/testsabirweb/chess-app/internal/puzzles"
 )
 
 type step struct {
@@ -145,6 +146,20 @@ func tapTowardStar(g *game.Game) {
 	g.TapSquare(int(pick.File), int(pick.Rank))
 }
 
+// tapPuzzleFrom picks up the piece that solves the puzzle as dealt.
+func tapPuzzleFrom(g *game.Game) {
+	if info, ok := g.PuzzleInfo(); ok {
+		g.TapSquare(int(info.Solution.From.File), int(info.Solution.From.Rank))
+	}
+}
+
+// tapPuzzleTo plays the solution move.
+func tapPuzzleTo(g *game.Game) {
+	if info, ok := g.PuzzleInfo(); ok {
+		g.TapSquare(int(info.Solution.To.File), int(info.Solution.To.Rank))
+	}
+}
+
 // tapHotSquare picks the piece up and taps a square the guard attacks, to show
 // the refusal.
 func tapHotSquare(g *game.Game) {
@@ -211,7 +226,7 @@ func pieceByName(n string) chess.PieceType {
 func main() {
 	out := flag.String("out", "shots", "directory for PNGs")
 	scene := flag.String("scene", "home", "home or play")
-	mode := flag.String("mode", "star", "game mode for the play scene: star, which, treasure, safe, pawnwars")
+	mode := flag.String("mode", "star", "game mode for the play scene: star, which, treasure, safe, puzzles, pawnwars")
 	piece := flag.String("piece", "rook", "piece for the play scene")
 	skip := flag.Int("skip", 0, "skip this many generated puzzles first")
 	seed := flag.Int("stickers", 0, "pre-seed this many collected stickers")
@@ -244,6 +259,20 @@ func main() {
 			{frame: 170, shot: "05-hopping"},
 			{frame: 200, shot: "06-reward-pop"},
 			{frame: 225, shot: "07-reward-fly"},
+		}
+	} else if *scene == "play" && *mode == "puzzles" {
+		g = game.NewInMode(game.ModePuzzle, chess.Rook)
+		g.SetHintDelay(*hintDelay)
+		g.SeedStickers(*seed)
+		g.SetPuzzleTier(puzzles.Mate1)
+		steps = []step{
+			{frame: 30, shot: "01-idle"},
+			{frame: 34, do: tapPuzzleFrom},
+			{frame: 50, shot: "02-piece-picked-up"},
+			{frame: 60, do: tapPuzzleTo},
+			{frame: 76, shot: "03-checkmate"},
+			{frame: 100, shot: "04-checkmate-later"},
+			{frame: 150, shot: "05-reward"},
 		}
 	} else if *scene == "play" && *mode == "safe" {
 		g = game.NewInMode(game.ModeSafe, pieceByName(*piece))
